@@ -26,7 +26,7 @@ class Attack:
     Base class for the attack implementations.
     """
     def __init__(self, start_pos: tuple[float, float, float], end_pos: tuple[float, float, float], step_size: int,
-                 max_target_temp: float = 40, cooling: float = 0):
+            max_target_temp: float = 40, cooling: float = 0, repetitions: int = 0):
         """
         Initializes attack settings and attack hardware.
         :param start_pos: Start position of attack.
@@ -41,6 +41,7 @@ class Attack:
         self.step_size = step_size or 1
         self.max_target_temp = max_target_temp
         self.cooling = cooling
+        self.repetitions = repetitions
 
     @staticmethod
     def name() -> str:

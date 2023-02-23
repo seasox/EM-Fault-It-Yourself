@@ -21,7 +21,7 @@ from emfi_station import Attack
 class ToyAttack(Attack):
 
     def __init__(self):
-        super().__init__(start_pos=None, end_pos=None, step_size=None, max_target_temp=40, cooling=1)
+        super().__init__(start_pos=None, end_pos=None, step_size=None, max_target_temp=40, cooling=1, repetitions=42)
 
     @staticmethod
     def name() -> str:
