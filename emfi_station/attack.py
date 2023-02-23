@@ -15,9 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
-
+import abc
 
 class Attack:
+    @abc.abstractmethod
+    def __init__():
+        raise Exception()
+
     """
     Base class for the attack implementations.
     """
@@ -40,11 +44,7 @@ class Attack:
 
     @staticmethod
     def name() -> str:
-        """
-        Returns name of target/attack.
-        :return: Attack name
-        """
-        return 'Default'
+        raise Exception("No name set")
 
     def init(self) -> None:
         """
@@ -53,6 +53,7 @@ class Attack:
         """
         return None
 
+    @abc.abstractmethod
     def shout(self) -> None:
         """
         Shout procedure.
@@ -60,6 +61,7 @@ class Attack:
         """
         return None
 
+    @abc.abstractmethod
     def was_successful(self) -> bool:
         """
         Determines if attack was successful or not.
@@ -68,6 +70,7 @@ class Attack:
         """
         return False
 
+    @abc.abstractmethod
     def reset_target(self) -> None:
         """
         Resets the target after an attack.
@@ -75,6 +78,7 @@ class Attack:
         """
         return None
 
+    @abc.abstractmethod
     def critical_check(self) -> bool:
         """
         Runs critical checks after every shout. May wait some time.
