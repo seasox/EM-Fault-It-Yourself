@@ -67,3 +67,6 @@ class ToyAttack(Attack):
         :return: True or False
         """
         return True
+
+    def shutdown(self) -> None:
+        return None

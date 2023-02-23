@@ -87,3 +87,10 @@ class Attack:
         :return: True or False
         """
         return True
+
+    @abc.abstractmethod
+    def shutdown(self) -> None:
+        """
+        Shut down the attack, e.g. disarm ChipShouter, home or reset attack hardware.
+        """
+        return None
