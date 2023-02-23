@@ -227,8 +227,10 @@ class WebSocketHelper:
         :return: True if possible, False if not possible.
         """
         if self.state.attack_enabled() or self.state.joystick_enabled():
+            self.log.critical('Can\'t start attack: another attack is currently running or joystick is active')
             return False
         if not self.attack_runner.load_attack(name):
+            self.log.critical(f'Loading attack {name} failed')
             return False
         self.task = threading.Thread(target=self.attack_runner.run)
         self.task.start()
