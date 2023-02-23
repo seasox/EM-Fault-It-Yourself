@@ -55,10 +55,7 @@ class AttackWorker:
         """
         cls = self.importer.get_attack_by_name(name)
         self.a_log.set_name(name)
-        try:
-            self.attack = cls()
-        except TypeError:
-            return False
+        self.attack = cls()
         return True
 
     def get_progress(self) -> float:

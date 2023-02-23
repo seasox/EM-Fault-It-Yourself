@@ -79,6 +79,9 @@
             <button class="btn btn-secondary ms-1" @click="switchCam('calibration')" v-if="cam !== 'calibration'">
                  Switch to Calibration
             </button>
+            <button class="btn btn-secondary ms-1" @click="switchCam('world')" v-if="cam !== 'world'">
+                 Switch to World Cam
+            </button>
         </div>
 
         <div class="mt-5 d-sm-flex justify-content-center">
@@ -94,7 +97,7 @@
                     <td>
                         <button class="btn btn-secondary w-100"
                                 @click="move('z', -1, settings.moveSpeed, settings.moveStep)">
-                            <strong> 🠕 </strong>
+                            <strong> &uarr; </strong>
                         </button>
                     </td>
                     <td></td>
@@ -102,7 +105,7 @@
                     <td>
                         <button class="btn btn-secondary w-100"
                                 @click="move('y', -1, settings.moveSpeed, settings.moveStep)">
-                            <strong> 🠕 </strong>
+                            <strong> &uarr; </strong>
                         </button>
                     </td>
                     <td></td>
@@ -113,14 +116,14 @@
                     <td>
                         <button class="btn btn-secondary w-100"
                                 @click="move('x', -1, settings.moveSpeed, settings.moveStep)">
-                            <strong> 🠔 </strong>
+                            <strong> &larr; </strong>
                         </button>
                     </td>
                     <td></td>
                     <td>
                         <button class="btn btn-secondary w-100"
                                 @click="move('x', 1, settings.moveSpeed, settings.moveStep)">
-                            <strong> 🠖 </strong>
+                            <strong> &rarr; </strong>
                         </button>
                     </td>
                 </tr>
@@ -128,7 +131,7 @@
                     <td>
                         <button class="btn btn-secondary w-100"
                                 @click="move('z', 1, settings.moveSpeed, settings.moveStep)">
-                            <strong> 🠗 </strong>
+                            <strong> &darr; </strong>
                         </button>
                     </td>
                     <td></td>
@@ -136,7 +139,7 @@
                     <td>
                         <button class="btn btn-secondary w-100"
                                 @click="move('y', 1, settings.moveSpeed, settings.moveStep)">
-                            <strong> 🠗 </strong>
+                            <strong> &darr; </strong>
                         </button>
                     </td>
                     <td></td>

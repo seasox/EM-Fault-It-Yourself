@@ -23,7 +23,7 @@ import pyudev
 # Thermal Camera I2C
 
 
-def get_device_fd(vendor: str, product: str, subsystem: str) -> str:
+def get_device_fd(vendor: str, product: str, subsystem: str, idx=0) -> str:
     """
     Returns device file path.
     :param vendor: Vendor ID
@@ -32,13 +32,16 @@ def get_device_fd(vendor: str, product: str, subsystem: str) -> str:
     :return: File path
     """
     context = pyudev.Context()
+    devices = []
     for device in context.list_devices(subsystem=subsystem):
         try:
             if device.properties['ID_VENDOR_ID'] == vendor and \
                device.properties['ID_MODEL_ID'] == product:
-                return device.properties['DEVNAME']
+                   devices += [device.properties['DEVNAME']]
         except KeyError:
             pass
+    if len(devices) > idx:
+        return devices[idx]
     raise FileNotFoundError('Device was not found.')
 
 

@@ -15,36 +15,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
-import abc
+from emfi_station import Attack
 
-class Attack:
-    @abc.abstractmethod
-    def __init__():
-        raise Exception()
 
-    """
-    Base class for the attack implementations.
-    """
-    def __init__(self, start_pos: tuple[float, float, float], end_pos: tuple[float, float, float], step_size: int,
-                 max_target_temp: float = 40, cooling: float = 0):
-        """
-        Initializes attack settings and attack hardware.
-        :param start_pos: Start position of attack.
-        :param end_pos: End positions of attack.
-        :param step_size: End positions of attack.
-        :param max_target_temp: Maximum target temperature before attack is paused.
-        :param cooling: Target cooling fan speed (0-1)
-        """
-        self.log = logging.getLogger(__name__)
-        self.start_pos = start_pos or [0, 0, 0]
-        self.end_pos = end_pos or [0, 0, 0]
-        self.step_size = step_size or 1
-        self.max_target_temp = max_target_temp
-        self.cooling = cooling
+class ToyAttack(Attack):
+
+    def __init__(self):
+        super().__init__(start_pos=None, end_pos=None, step_size=None, max_target_temp=40, cooling=1)
 
     @staticmethod
     def name() -> str:
-        raise Exception("No name set")
+        """
+        Returns name of target/attack.
+        :return: Attack name
+        """
+        return 'Toy Attack'
 
     def init(self) -> None:
         """
@@ -53,7 +38,6 @@ class Attack:
         """
         return None
 
-    @abc.abstractmethod
     def shout(self) -> None:
         """
         Shout procedure.
@@ -61,7 +45,6 @@ class Attack:
         """
         return None
 
-    @abc.abstractmethod
     def was_successful(self) -> bool:
         """
         Determines if attack was successful or not.
@@ -70,7 +53,6 @@ class Attack:
         """
         return False
 
-    @abc.abstractmethod
     def reset_target(self) -> None:
         """
         Resets the target after an attack.
@@ -78,7 +60,6 @@ class Attack:
         """
         return None
 
-    @abc.abstractmethod
     def critical_check(self) -> bool:
         """
         Runs critical checks after every shout. May wait some time.

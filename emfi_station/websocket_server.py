@@ -132,6 +132,18 @@ class WebSocketServer:
             await websocket.send(message)
             await asyncio.sleep(0.05)
 
+    async def __world_producer(self, websocket: websockets.WebSocketServerProtocol) -> None:
+        """
+        Sends microscope images to a client every 100ms.
+        :param websocket: Client to send image to.
+        :return: None
+        """
+        while True:
+            image = self.helper.get_world_frame()
+            message = json.dumps({'type': 'world', 'image': image})
+            await websocket.send(message)
+            await asyncio.sleep(0.05)
+
     async def __thermal_camera_producer(self, websocket: websockets.WebSocketServerProtocol) -> None:
         """
         Sends thermal images to a client every 0.5s.
@@ -193,6 +205,7 @@ class WebSocketServer:
                 self.__thermal_camera_producer(websocket),
                 self.__microscope_producer(websocket),
                 self.__calibration_producer(websocket),
+                self.__world_producer(websocket),
                 self.__state_producer(),
             )
         except ConnectionClosed or ConnectionClosedOK or ConnectionClosedError:

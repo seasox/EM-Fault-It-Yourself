@@ -1,0 +1,15 @@
+# this service file is symlinked to /etc/systemd/system/emfi.service
+
+[Unit]
+Description=EM-Fault It Yourself
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/EM-Fault-It-Yourself
+ExecStart=/home/pi/EM-Fault-It-Yourself/venv/bin/python -m emfi_station -i 0.0.0.0 -p 8080
+User=pi
+
+[Install]
+WantedBy=multi-user.target

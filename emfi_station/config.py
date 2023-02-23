@@ -21,8 +21,9 @@ class Config:
     host: str = 'localhost'
     http_port: int = 9118
     simulate: bool = True
-    attack_dir: str = None
-    log_dir: str = None
-    positioning_cam: tuple[str, str] = ('299f', 'eb1a')
-    calibration_cam: tuple[str, str] = ('6353', '0c45')
+    attack_dir: str = 'attacks'
+    log_dir: str = 'attack_logs'
+    world_cam: tuple[str, str, int] = ('0779', '045e', 0) #('0304', 'a16f', 0)
+    positioning_cam: tuple[str, str, int] = ('0304', 'a16f', 0)
+    calibration_cam: tuple[str, str, int] = ('0304', 'a16f', 1)
     marlin: tuple[str, str] = ('0483', '5740')
