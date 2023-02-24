@@ -16,12 +16,15 @@
 
 import logging
 from emfi_station import Attack
+from chipshouter import ChipSHOUTER
+import random
+import time
 
 
 class ToyAttack(Attack):
 
     def __init__(self):
-        super().__init__(start_pos=None, end_pos=None, step_size=None, max_target_temp=40, cooling=1, repetitions=42)
+        super().__init__(start_pos=(0,80,134), end_pos=(0,86,134), step_size=1, max_target_temp=40, cooling=1, repetitions=3)
 
     @staticmethod
     def name() -> str:
@@ -36,6 +39,9 @@ class ToyAttack(Attack):
         Initialize hardware and define e.g. ChipShouter settings.
         :return: None
         """
+        self.cs = ChipSHOUTER("/dev/ttyUSB0")
+        self.cs.voltage = 500
+        self.cs.pulse.repeat = 10
         return None
 
     def shout(self) -> None:
@@ -43,7 +49,17 @@ class ToyAttack(Attack):
         Shout procedure.
         :return: None
         """
-        return None
+        while True:
+            try:
+                if not self.cs.armed:
+                    time.sleep(1)
+                    self.cs.armed = 1
+                    time.sleep(1)
+                self.cs.pulse = 1
+            except Exception as e:
+                print(e)
+                continue
+            return None
 
     def was_successful(self) -> bool:
         """
@@ -69,4 +85,5 @@ class ToyAttack(Attack):
         return True
 
     def shutdown(self) -> None:
+        self.cs.armed = 0
         return None
