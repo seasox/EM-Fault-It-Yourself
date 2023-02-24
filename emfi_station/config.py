@@ -27,3 +27,4 @@ class Config:
     positioning_cam: tuple[str, str, int] = ('0304', 'a16f', 0)
     calibration_cam: tuple[str, str, int] = ('0304', 'a16f', 1)
     marlin: tuple[str, str] = ('0483', '5740')
+    safe_z: int = 134

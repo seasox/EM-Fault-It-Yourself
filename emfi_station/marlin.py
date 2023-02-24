@@ -30,7 +30,7 @@ class Marlin:
     """
     Controls XYZ stage setup.
     """
-    def __init__(self, vendor_id: str, product_id: str, simulate: bool = False) -> None:
+    def __init__(self, vendor_id: str, product_id: str, simulate: bool = False, safe_height = 100) -> None:
         """
         Connects to Marlin-based controller via serial port.
         Raises SerialException if serial port is unavailable.
@@ -51,7 +51,7 @@ class Marlin:
             simulate = True
         self.ser = MarlinSerial(tty, simulate)
         self.continuous_movement = None
-        self.safe_height = 100
+        self.safe_height = safe_height
 
     def close(self) -> None:
         """
@@ -266,12 +266,13 @@ class Marlin:
         self.ser.cmd(cmd)
         self.__wait_cmd_completed()
 
-    def home(self, x: bool = False, y: bool = False, z: bool = False) -> None:
+    def home(self, x: bool = False, y: bool = False, z: bool = False, if_untrusted=False) -> None:
         """
         Homes one or more axles (G28).
         :param x: Homes x axis if True.
         :param y: Homes y axis if True.
         :param z: Homes z axis if True.
+        :param if_untrusted: skip homing of trusted axis if True
         :return: None
         """
         if x == y == z and not x:
@@ -283,6 +284,8 @@ class Marlin:
             cmd += ' Y'
         if z:
             cmd += ' Z'
+        if if_untrusted:
+            cmd += ' O'
         self.ser.clear()
         self.ser.cmd(cmd)
         self.log.info('Homing axles: {:s}'.format(cmd.split('G28 ')[1]))

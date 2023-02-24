@@ -39,7 +39,7 @@ class WebSocketHelper:
         """
         self.log = logging.getLogger(__name__)
         self.importer = AttackImporter(config.attack_dir)
-        self.marlin = Marlin(*config.marlin, config.simulate)
+        self.marlin = Marlin(*config.marlin, config.simulate, config.safe_z)
         self.microscope = Microscope(*config.positioning_cam, None)
         self.calibration = Microscope(*config.calibration_cam, None)
         self.world = Microscope(*config.world_cam, None, draw_crosshair=False)
@@ -48,7 +48,7 @@ class WebSocketHelper:
         self.attack_runner = AttackWorker(self.importer, self.marlin, self.thermal_camera, config.log_dir)
         self.joystick = None
         self.task = threading.Thread()
-        self.state = State(self.importer.get_attack_names())
+        self.state = State(self.importer.get_attack_names(), config.safe_z)
 
     def step(self, speed: float, x: float, y: float, z: float) -> bool:
         """
