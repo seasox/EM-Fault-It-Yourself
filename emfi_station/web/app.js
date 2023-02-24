@@ -44,7 +44,7 @@ const app = Vue.createApp({
                 selectedAttack: '',
                 safeZ: 100,
             },
-            stream: '',
+            stream: 'cam_loading.svg',
             cam: 'thermal'
         }
     },
@@ -99,6 +99,7 @@ const app = Vue.createApp({
         },
         switchCam(name) {
             this.cam = name;
+	    this.stream = 'cam_loading.svg';
         },
         setSafeZ(z) {
             this.sendCmd('safeZ', {'z': z});
@@ -114,19 +115,19 @@ const app = Vue.createApp({
             let data = JSON.parse(msg.data)
             if (data.type === 'microscope') {
                 if (this.cam === 'microscope') {
-                    this.stream = data.image;
+                    this.stream = 'data:image/jpg;base64,' + data.image;
                 }
             } else if (data.type === 'thermal_camera') {
                 if (this.cam === 'thermal') {
-                    this.stream = data.image;
+                    this.stream = 'data:image/jpg;base64,' + data.image;
                 }
             } else if (data.type === 'calibration') {
                 if (this.cam === 'calibration') {
-                    this.stream = data.image;
+                    this.stream = 'data:image/jpg;base64,' + data.image;
                 }
             } else if (data.type == 'world') {
 		if (this.cam == 'world') {
-		    this.stream = data.image;
+		    this.stream = 'data:image/jpg;base64,' + data.image;
 		}
             } else if (data.type === 'error') {
                 this.showError(data.message);

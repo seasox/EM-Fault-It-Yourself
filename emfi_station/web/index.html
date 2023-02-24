@@ -69,26 +69,17 @@
             </div>
         </div>
 
-        <div class="d-sm-flex justify-content-end mt-3" >
-            <button class="btn btn-secondary ms-1" @click="switchCam('microscope')" v-if="cam !== 'microscope'">
-                 Switch to Positioning
-            </button>
-            <button class="btn btn-secondary ms-1" @click="switchCam('thermal')" v-if="cam !== 'thermal'">
-                 Switch to Thermal
-            </button>
-            <button class="btn btn-secondary ms-1" @click="switchCam('calibration')" v-if="cam !== 'calibration'">
-                 Switch to Calibration
-            </button>
-            <button class="btn btn-secondary ms-1" @click="switchCam('world')" v-if="cam !== 'world'">
-                 Switch to World Cam
-            </button>
+        <div class="d-sm-flex justify-content-center mt-3" >
+	    <ul class="nav nav-tabs">
+		    <li role="presentation" :class="{'nav-link': true, active: cam==='microscope'}"> <a href="#" @click="switchCam('microscope')">Positioning</a></li>
+		    <li role="presentation" :class="{'nav-link': true, active: cam==='thermal'}">    <a href="#" @click="switchCam('thermal')">Thermal</a></li>
+		    <li role="presentation" :class="{'nav-link': true, active: cam==='calibration'}"><a href="#" @click="switchCam('calibration')">Calibration</a></li>
+		    <li role="presentation" :class="{'nav-link': true, active: cam==='world'}">      <a href="#" @click="switchCam('world')">World</a></li>
+	    </ul>
         </div>
 
         <div class="mt-5 d-sm-flex justify-content-center">
-            <div class="col-7">
-                <img :src="'data:image/jpg;base64,' + stream" style="width: 100%;" id="stream" alt="Stream">
-                 <canvas id="overlay"></canvas>
-            </div>
+	    <img :src="stream" style="height: 420px;" id="stream" alt="Stream">
         </div>
 
         <div class="d-sm-flex justify-content-center mt-5">
