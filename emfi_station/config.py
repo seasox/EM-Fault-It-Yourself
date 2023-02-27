@@ -22,7 +22,7 @@ class Config:
     http_port: int = 9118
     simulate: bool = True
     attack_dir: str = 'attacks'
-    log_dir: str = 'attack_logs'
+    log_dir: str = 'log'
     world_cam: tuple[str, str, int] = ('0779', '045e', 0) #('0304', 'a16f', 0)
     positioning_cam: tuple[str, str, int] = ('0304', 'a16f', 0)
     calibration_cam: tuple[str, str, int] = ('0304', 'a16f', 1)
