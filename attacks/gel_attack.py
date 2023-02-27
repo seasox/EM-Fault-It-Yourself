@@ -25,7 +25,7 @@ import time
 class GelAttack(Attack):
 
     def __init__(self):
-        super().__init__(start_pos=(15,65,125), end_pos=(35,85,134), step_size=1, max_target_temp=40, cooling=1, repetitions=3)
+        super().__init__(start_pos=(15,65,132), end_pos=(35,85,134), step_size=1, max_target_temp=40, cooling=1, repetitions=3)
 
     @staticmethod
     def name() -> str:
