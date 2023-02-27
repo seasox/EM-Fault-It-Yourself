@@ -58,7 +58,7 @@ class AttackLogger:
         if self.file is not None:
             self.file.close()
         now = datetime.now()
-        filename = '{}{}.txt'.format(now.strftime("%d.%m.%Y - %H:%M:%S - "), self.attack_name)
+        filename = '{}_{}.log'.format(now.strftime("%Y-%m-%dT%H:%M:%S"), self.attack_name)
         if self.dir is not None:
             self.file = open(self.dir + '/' + filename, 'w')
 
