@@ -1,8 +1,6 @@
 import socket, logging
 
-from string import Formatter
 from typing import Tuple, Optional, Callable, Any
-import numpy as np
 from typing_extensions import Literal
 
 
