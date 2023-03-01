@@ -266,13 +266,13 @@ class Marlin:
         self.ser.cmd(cmd)
         self.__wait_cmd_completed()
 
-    def home(self, x: bool = False, y: bool = False, z: bool = False, if_untrusted=False) -> None:
+    def home(self, x: bool = False, y: bool = False, z: bool = False, force_homing=True) -> None:
         """
         Homes one or more axles (G28).
         :param x: Homes x axis if True.
         :param y: Homes y axis if True.
         :param z: Homes z axis if True.
-        :param if_untrusted: skip homing of trusted axis if True
+        :param force_homing: force homing of trusted axis
         :return: None
         """
         if x == y == z and not x:
@@ -284,7 +284,7 @@ class Marlin:
             cmd += ' Y'
         if z:
             cmd += ' Z'
-        if if_untrusted:
+        if not force_homing:
             cmd += ' O'
         self.ser.clear()
         self.ser.cmd(cmd)

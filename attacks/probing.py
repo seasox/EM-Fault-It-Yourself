@@ -22,7 +22,6 @@ from pprint import pprint
 import numpy as np
 from chipshouter import ChipSHOUTER
 from emfi_station import Attack
-from emfi_station import AttackWorker
 from typing import Tuple, Optional, Callable, Any
 from typing_extensions import Literal
 
@@ -172,18 +171,21 @@ class Datapoint:
 
         return data
 
-    def get_regs_flipped(self):
+    def get_regs_flipped(self) -> Tuple[dict, bool]:
         data = {"0 -> 1": {}, "1 -> 0": {}}
+        succ = False
         for key, value in self.reg_diff.items():
             zto = value[BitFlip.ZERO_TO_ONE]
             otz = value[BitFlip.ONE_TO_ZERO]
+            succ |= zto or otz
             if zto:
                 data["0 -> 1"][key] = {"Count": zto, "Indices:": [i for i, x in enumerate(value["Distribution"]) if
                                                                   x == BitFlip.ZERO_TO_ONE]}
+
             if otz:
                 data["1 -> 0"][key] = {"Count": otz, "Indices:": [i for i, x in enumerate(value["Distribution"]) if
                                                                   x == BitFlip.ONE_TO_ZERO]}
-        return data
+        return data, succ
 
 class Probing(Attack):
     to_bits = lambda x, bit_width: np.unpackbits(np.frombuffer(int(x, 16).to_bytes(bit_width, byteorder="big"), dtype=np.uint8),
@@ -226,12 +228,14 @@ class Probing(Attack):
                 continue
             return
 
-    def was_successful(self, aw: AttackWorker) -> bool:
+    def was_successful(self, aw) -> bool:
         self.reg_post_fault = self.device.reg()
         d = Datapoint(self.reg_pre_fault, self.reg_post_fault, aw.position, {}, None, None)
-        aw.a_log.log(f'{d.get_regs_flipped()}')
-        pprint(d.get_regs_flipped())
-        return False
+        flipped, succ = d.get_regs_flipped()
+        if succ:
+            aw.a_log.log(str(flipped))
+            pprint(flipped)
+        return succ
 
     def reset_target(self) -> None:
         self.device.reset("halt")
