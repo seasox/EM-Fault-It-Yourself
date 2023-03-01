@@ -22,7 +22,7 @@ from pprint import pprint
 import numpy as np
 from chipshouter import ChipSHOUTER
 from emfi_station import Attack
-from emfi_station.attack_worker import AttackWorker
+from emfi_station import AttackWorker
 from typing import Tuple, Optional, Callable, Any
 from typing_extensions import Literal
 
