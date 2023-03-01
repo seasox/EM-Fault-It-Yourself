@@ -23,7 +23,7 @@ from typing import Tuple
 import numpy as np
 from chipshouter import ChipSHOUTER
 from emfi_station import Attack
-from __openocd import openocd
+import openocd
 
 
 class BitFlip(Enum):
