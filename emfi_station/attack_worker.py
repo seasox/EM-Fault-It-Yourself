@@ -94,7 +94,7 @@ class AttackWorker:
                     return
                 self.attack.reset_target()
                 self.attack.shout()
-                if self.attack.was_successful():
+                if self.attack.was_successful(self):
                     self.log.critical('Successful at ' + str(pos))
                     self.a_log.log('Successful at ' + str(pos))
                 else:

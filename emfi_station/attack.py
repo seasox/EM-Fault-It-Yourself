@@ -16,6 +16,7 @@
 
 import logging
 import abc
+from attack_worker import AttackWorker
 
 class Attack:
     @abc.abstractmethod
@@ -63,7 +64,7 @@ class Attack:
         return None
 
     @abc.abstractmethod
-    def was_successful(self) -> bool:
+    def was_successful(self, aw: AttackWorker) -> bool:
         """
         Determines if attack was successful or not.
         Returns True if successful.

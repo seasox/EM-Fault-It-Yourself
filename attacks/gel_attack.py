@@ -21,6 +21,8 @@ from attacks.ballisticgel import CW521
 import random
 import time
 
+from emfi_station.attack_worker import AttackWorker
+
 
 class GelAttack(Attack):
 
@@ -65,7 +67,7 @@ class GelAttack(Attack):
                 continue
             return None
 
-    def was_successful(self) -> bool:
+    def was_successful(self, aw: AttackWorker) -> bool:
         """
         Determines if attack was successful or not.
         Returns True if successful.

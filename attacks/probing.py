@@ -23,6 +23,8 @@ from typing import Tuple
 import numpy as np
 from chipshouter import ChipSHOUTER
 from emfi_station import Attack
+from emfi_station.attack_worker import AttackWorker
+
 import openocd
 
 
@@ -88,7 +90,6 @@ class Datapoint:
         for key, value in self.reg_diff.items():
             zto = value[BitFlip.ZERO_TO_ONE]
             otz = value[BitFlip.ONE_TO_ZERO]
-
             if zto:
                 data["0 -> 1"][key] = {"Count": zto, "Indices:": [i for i, x in enumerate(value["Distribution"]) if
                                                                   x == BitFlip.ZERO_TO_ONE]}
@@ -104,21 +105,18 @@ class Probing(Attack):
 
 
     def __init__(self):
-        super().__init__(start_pos=(15, 65, 132), end_pos=(35, 85, 134), step_size=1, max_target_temp=40, cooling=1,
+        super().__init__(start_pos=(2, 50, 110),
+                         end_pos=(12, 60, 110),
+                         step_size=1,
+                         max_target_temp=40,
+                         cooling=1,
                          repetitions=3)
 
         self.device = openocd.OpenOCD(value_cast=Probing.to_bits)
         self.device.connect()
-        self.device.halt()
-        regs_pre = self.device.reg()
         self.device.reset("halt")
-        self.device.reg("r0", 42)
-        regs_past = self.device.reg()
-        d = Datapoint(regs_pre, regs_past, (0, 0, 0), {}, None, None)
-
-        pprint(d.get_regs_flipped())
-
-        self.device.close()
+        self.reg_pre_fault = None
+        self.reg_post_fault = None
 
     @staticmethod
     def name() -> str:
@@ -139,12 +137,18 @@ class Probing(Attack):
             except Exception as e:
                 self.log(e)
                 continue
+            return
 
-    def was_successful(self) -> bool:
+    def was_successful(self, aw: AttackWorker) -> bool:
+        self.reg_post_fault = self.device.reg()
+        d = Datapoint(self.reg_pre_fault, self.reg_post_fault, aw.position, {}, None, None)
+        aw.a_log(d.get_regs_flipped())
+        pprint(d.get_regs_flipped())
         return False
 
     def reset_target(self) -> None:
         self.device.reset("halt")
+        self.reg_pre_fault = self.device.reg()
 
     def critical_check(self) -> bool:
         return True
