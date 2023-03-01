@@ -229,7 +229,7 @@ class Probing(Attack):
     def was_successful(self, aw: AttackWorker) -> bool:
         self.reg_post_fault = self.device.reg()
         d = Datapoint(self.reg_pre_fault, self.reg_post_fault, aw.position, {}, None, None)
-        aw.a_log(d.get_regs_flipped())
+        aw.a_log.log(f'{d.get_regs_flipped()}')
         pprint(d.get_regs_flipped())
         return False
 
