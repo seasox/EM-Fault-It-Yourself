@@ -194,8 +194,8 @@ class Probing(Attack):
 
 
     def __init__(self):
-        super().__init__(start_pos=(2, 50, 110),
-                         end_pos=(12, 60, 110),
+        super().__init__(start_pos=(0, 48, 115),
+                         end_pos=(14, 63, 115),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
@@ -214,7 +214,7 @@ class Probing(Attack):
     def init(self) -> None:
         self.cs = ChipSHOUTER("/dev/ttyUSB0")
         self.cs.voltage = 500
-        self.cs.pulse.repeat = 10
+        self.cs.pulse.repeat = 9
 
     def shout(self) -> None:
         while True:
