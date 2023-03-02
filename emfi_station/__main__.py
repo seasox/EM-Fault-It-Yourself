@@ -17,6 +17,7 @@ import ast
 import sys
 import logging
 import argparse
+from pprint import pprint
 from typing import Optional, List, Tuple
 
 from .config import Config
@@ -47,9 +48,9 @@ def main():
     parser.add_argument('--world_cam', type=str, nargs='*', default=('0779', '045e', 0),
                         help='The device information of world camera. Format: vendor_id product_id [index]')  # ('0304', 'a16f', 0)
     # Misc:
-    parser.add_argument('--safe_z', type=int, required=True,
+    parser.add_argument('--safe_z', type=int, default=115,
                         help='Prevent the stage moving beyond the specified value regardless of the attack parameters')
-    parser.add_argument('-v', '--verbosity', action='store_true', help='Enable info log level')
+    parser.add_argument('-v', '--verbosity', default=False, action='store_true', help='Enable info log level')
     args = parser.parse_args()
 
     config = Config(host=args.host,
@@ -63,10 +64,8 @@ def main():
                     world_cam=device_info(args.world_cam),
                     safe_z=args.safe_z)
 
-    if args.verbosity is True:
-        level = logging.INFO
-    else:
-        level = logging.ERROR
+    pprint(config)
+    level = logging.INFO if args.verbosity else logging.ERROR
     logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', stream=sys.stdout, level=level)
 
     EMFIStation(config)
