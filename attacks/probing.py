@@ -135,6 +135,11 @@ class BitFlip(Enum):
     ONE_TO_ZERO = 3
 
 
+class Metric(Enum):
+    AnyFlipAnywhere = 1
+
+
+
 def diff(pre, post) -> list[BitFlip]:
     flips = []
     for a, b in zip(pre, post):
@@ -159,10 +164,12 @@ class Datapoint:
     mem_post_fault: np.array
     mem_diff: dict = field(init=False)
     reg_diff: dict = field(init=False)
+    regs_flipped: dict = field(init=False)
 
     def __post_init__(self):
         self.mem_diff = self._calc_mem_diff()
         self.reg_diff = self._calc_reg_diff()
+        self.regs_flipped = self._calc_regs_flipped()
         if not self.config.get("store_memory"):  # does not store memory dump by default
             del self.mem_pre_fault
             del self.mem_post_fault
@@ -192,26 +199,32 @@ class Datapoint:
 
         return data
 
-    def get_regs_flipped(self) -> Tuple[dict, bool]:
-        data = {"0 -> 1": {}, "1 -> 0": {}}
-        succ = False
+    def _calc_regs_flipped(self) -> Dict:
+        data = {"total": 0, "0 -> 1": {}, "1 -> 0": {}}
         for reg, value in self.reg_diff.items():
             if value == "Corrupted":
-                # TODO log this
                 print(f"{reg} is corrupted!")
                 continue
             zto = value[BitFlip.ZERO_TO_ONE]
             otz = value[BitFlip.ONE_TO_ZERO]
-            succ |= zto or otz
+            data["total"] += zto + otz
             if zto:
                 data["0 -> 1"][reg] = {"Count": zto,
                                        "Indices:": [i for i, x in enumerate(value["Distribution"]) if
-                                                                  x == BitFlip.ZERO_TO_ONE]}
+                                                    x == BitFlip.ZERO_TO_ONE]}
             if otz:
                 data["1 -> 0"][reg] = {"Count": otz,
                                        "Indices:": [i for i, x in enumerate(value["Distribution"]) if
-                                                                  x == BitFlip.ONE_TO_ZERO]}
-        return data, succ
+                                                    x == BitFlip.ONE_TO_ZERO]}
+        return data
+
+    def evaluate(self, m: Metric):
+        """
+        Returns how well this datapoint performed given some metric
+        """
+        match type(m):
+            case Metric.AnyFlipAnywhere:
+                return self.regs_flipped["total"] > 0
 
 
 class Probing(Attack):
@@ -229,15 +242,23 @@ class Probing(Attack):
         self.device = OpenOCD()
         self.device.connect()
         self.device.reset("halt")
+        # TODO make dynamic
+        self.metric = Metric.AnyFlipAnywhere
         self.prev_reg = None
         self.aw = None
+        self.dp_matrix_loc = None
 
     @staticmethod
     def name() -> str:
         return "Probing Attack"
 
+    def __init_dp_matrix(self):
+        dx, dy, dz = (np.array(self.end_pos) - self.start_pos) // self.step_size  # how many dps in each dim
+        return np.zeros((dx, dy, max(dz, 1)))
+
     def init(self, aw) -> None:
         self.aw = aw
+        self.dp_matrix_loc = self.__init_dp_matrix()
         self.cs = ChipSHOUTER("/dev/ttyUSB0")
         self.cs.voltage = 500
         self.cs.pulse.repeat = 9
@@ -254,13 +275,29 @@ class Probing(Attack):
                 continue
             return
 
+    def visualize(self):
+        import matplotlib.pyplot as plt
+        plt.imshow(self.dp_matrix_loc, cmap='viridis', interpolation='nearest')
+        plt.colorbar()
+        plt.show()
+
+
     def was_successful(self) -> bool:
         d = Datapoint(self.prev_reg, self.device.reg(), self.aw.position, {}, None, None)
-        flipped, succ = d.get_regs_flipped()
-        if succ:
-            self.aw.a_log.log(str(flipped))
-            pprint(flipped)
-        return succ
+        x, y, z = np.array(self.aw.position) // self.step_size
+        performance = d.evaluate(self.metric)
+        self.dp_matrix_loc[x][y][z] = performance
+        success = False
+
+        match self.metric:
+            case Metric.AnyFlipAnywhere:
+                success = performance > 0
+
+        if success:
+            self.aw.a_log.log(str(d.regs_flipped))
+            pprint(d.regs_flipped)
+
+        return success
 
     def reset_target(self) -> None:
         self.device.reset("halt")
@@ -271,3 +308,6 @@ class Probing(Attack):
 
     def shutdown(self) -> None:
         self.cs.armed = 0
+
+if __name__ == '__main__':
+    Probing().init(None)
