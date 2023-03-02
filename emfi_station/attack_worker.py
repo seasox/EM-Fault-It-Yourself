@@ -83,7 +83,7 @@ class AttackWorker:
         self.a_log.log('Starting attack...')
         self.marlin.set_fan_speed(min(int(self.attack.cooling * 255), 255))
         positions = compute_positions(self.attack.start_pos, self.attack.end_pos, self.attack.step_size)
-        self.attack.init()
+        self.attack.init(self)
         self.__move_to_start()
         for i, pos in enumerate(positions):
             self.marlin.move(*pos, 100)
@@ -94,7 +94,7 @@ class AttackWorker:
                     return
                 self.attack.reset_target()
                 self.attack.shout()
-                if self.attack.was_successful(self):
+                if self.attack.was_successful():
                     self.log.critical('Successful at ' + str(pos))
                     self.a_log.log('Successful at ' + str(pos))
                 else:

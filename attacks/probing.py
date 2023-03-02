@@ -113,12 +113,6 @@ class OpenOCD:
             data[key] = value
         return data
 
-    def get_reg(self, registers: Tuple[str], force: Optional[bool] = None):
-        pass
-        # force = "-force" if force else ""
-        # regs = " ".join(registers)
-        # self.execute(f"get_reg {force} {{ {regs} }}")
-
     def connect(self):
         """Establish a connection to the OpenOCD server."""
         self._socket.connect((self._host, self._port))
@@ -214,7 +208,8 @@ class Datapoint:
                                        "Indices:": [i for i, x in enumerate(value["Distribution"]) if
                                                                   x == BitFlip.ZERO_TO_ONE]}
             if otz:
-                data["1 -> 0"][reg] = {"Count": otz, "Indices:": [i for i, x in enumerate(value["Distribution"]) if
+                data["1 -> 0"][reg] = {"Count": otz,
+                                       "Indices:": [i for i, x in enumerate(value["Distribution"]) if
                                                                   x == BitFlip.ONE_TO_ZERO]}
         return data, succ
 
@@ -235,12 +230,14 @@ class Probing(Attack):
         self.device.connect()
         self.device.reset("halt")
         self.prev_reg = None
+        self.aw = None
 
     @staticmethod
     def name() -> str:
         return "Probing Attack"
 
-    def init(self) -> None:
+    def init(self, aw) -> None:
+        self.aw = aw
         self.cs = ChipSHOUTER("/dev/ttyUSB0")
         self.cs.voltage = 500
         self.cs.pulse.repeat = 9
@@ -257,17 +254,17 @@ class Probing(Attack):
                 continue
             return
 
-    def was_successful(self, aw) -> bool:
-        d = Datapoint(self.reg_pre_fault, self.device.reg(), aw.position, {}, None, None)
+    def was_successful(self) -> bool:
+        d = Datapoint(self.prev_reg, self.device.reg(), self.aw.position, {}, None, None)
         flipped, succ = d.get_regs_flipped()
         if succ:
-            aw.a_log.log(str(flipped))
+            self.aw.a_log.log(str(flipped))
             pprint(flipped)
         return succ
 
     def reset_target(self) -> None:
         self.device.reset("halt")
-        self.reg_pre_fault = self.device.reg()
+        self.prev_reg = self.device.reg()
 
     def critical_check(self) -> bool:
         return True

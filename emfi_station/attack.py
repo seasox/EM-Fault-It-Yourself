@@ -19,7 +19,7 @@ import abc
 
 class Attack:
     @abc.abstractmethod
-    def __init__():
+    def __init__(self):
         raise Exception()
 
     """
@@ -47,9 +47,10 @@ class Attack:
     def name() -> str:
         raise Exception("No name set")
 
-    def init(self) -> None:
+    def init(self, aw) -> None:
         """
         Initialize hardware and define e.g. ChipShouter settings.
+        :param aw: AttackWorker
         :return: None
         """
         return None
@@ -63,11 +64,10 @@ class Attack:
         return None
 
     @abc.abstractmethod
-    def was_successful(self, aw) -> bool:
+    def was_successful(self) -> bool:
         """
         Determines if attack was successful or not.
         Returns True if successful.
-        :param aw: AttackWorker
         :return: True or False
         """
         return False
