@@ -13,18 +13,20 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from dataclasses import dataclass
 
+@dataclass
 class Config:
     """
     Encapsulates configuration variables
     """
-    host: str = 'localhost'
-    http_port: int = 9118
-    simulate: bool = True
-    attack_dir: str = 'attacks'
-    log_dir: str = 'log'
-    world_cam: tuple[str, str, int] = ('0779', '045e', 0) #('0304', 'a16f', 0)
-    positioning_cam: tuple[str, str, int] = ('0304', 'a16f', 0)
-    calibration_cam: tuple[str, str, int] = ('0304', 'a16f', 1)
-    marlin: tuple[str, str] = ('0483', '5740')
-    safe_z: int = 134
+    host: str
+    http_port: int
+    simulate: bool
+    attack_dir: str
+    log_dir: str
+    world_cam: tuple[str, str, int]
+    positioning_cam: tuple[str, str, int]
+    calibration_cam: tuple[str, str, int]
+    marlin: tuple[str, str, int]
+    safe_z: int

@@ -120,8 +120,8 @@ class AttackWorker:
         Homes each axis and moves to the first attack position.
         :return: None
         """
-        self.marlin.home(z=True, force_homing=True)
-        self.marlin.home(x=True, y=True, z=False, force_homing=True)
+        self.marlin.home(z=True, force_homing=False)
+        self.marlin.home(x=True, y=True, z=False, force_homing=False)
         self.marlin.move(x=self.attack.start_pos[0])
         self.marlin.move(y=self.attack.start_pos[1])
         self.marlin.move(z=self.attack.start_pos[2])

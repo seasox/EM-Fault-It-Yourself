@@ -1,20 +1,5 @@
-# EMFI Station - Orchestrate electromagnetic fault injection attacks
-# Copyright (C) 2022 Niclas Kühnapfel
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 import socket
+import uuid
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -22,7 +7,7 @@ from pprint import pprint
 import numpy as np
 from chipshouter import ChipSHOUTER
 from emfi_station import Attack
-from typing import Tuple, Optional, Callable, Any
+from typing import Tuple, Optional, Callable, Any, List, Dict
 from typing_extensions import Literal
 
 
@@ -31,11 +16,11 @@ class OpenOCD:
     EOF = bytes('\x1a', encoding=encoding)
 
     def __init__(self, host='localhost', port=6666, _socket=None,
-                 value_cast: Callable[[str, int], Any] = lambda x, bit_width: int(x, 16)):
+                 value_cast: Callable[[int, int], Any] = lambda x, bit_width: x):
         self._host = host
         self._port = port
         self._buffer_size = 4096
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) or _socket
+        self._socket = _socket or socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._device_layout = None
         self._value_cast = value_cast
 
@@ -73,31 +58,66 @@ class OpenOCD:
         """Close the connection."""
         self._socket.close()
 
-    def __to_data_entry(self, bit_width: int, content: str, dirty: bool):
-        return {"Width": bit_width,
-                "Content": self._value_cast(content, bit_width),
-                "Dirty": dirty}
+    @staticmethod
+    def __get_safe(reg: Any | None, start: int, end: int = None, step: int = 1, optional=None):
+        if reg is None:
+            return optional
+        if end is None:
+            if start < len(reg):
+                return reg[start]
+            else:
+                return optional
+        else:
+            return reg[start:end:step]
+
+    def __to_data_entry(self, res_fields: List[str] | None):
+        reg_name = OpenOCD.__get_safe(res_fields, 0)
+        bit_width_raw = OpenOCD.__get_safe(res_fields, 1)
+        bit_width = OpenOCD.__get_safe(bit_width_raw, 2, -2)
+        content = OpenOCD.__get_safe(res_fields, 2)
+        dirty = OpenOCD.__get_safe(res_fields, 3, optional=False)
+
+        if bit_width is not None:
+            try:
+                bit_width = int(bit_width, base=10)
+            except ValueError:
+                content = None  # cannot reliably determine register content
+                bit_width = None
+        if content is not None:
+            try:
+                content = self._value_cast(int(content, 16), bit_width)
+            except ValueError:
+                content = None
+
+        corrupted = any((reg_name is None,
+                         bit_width is None,
+                         content is None))
+        reg_name = reg_name or f"Corrupted_{str(uuid.uuid4())[:5]}"
+
+        return reg_name, {"Width": bit_width, "Content": content, "Dirty": dirty, "Corrupted": corrupted}
 
     def reg(self, name: Optional[str] = None, value: Optional[int] = None, force: Optional[bool] = None):
-        # TODO are there more optional fields other than dirty?
         if force and value:
             return None
         force = "-force" if force else ""
         if name is None:
-            res = self.execute("reg").split("\n")
-            return {
-                l[1]: self.__to_data_entry(int(l[2][2:-2]), l[3], len(l) == 5)
-                for l in map(lambda row: row.split(), res[1:-2])}
-        if value is None:  # get the value of the register
-            res = self.execute(f"reg {name} {force}").split()
+            res = [reg.split()[1:] for reg in self.execute("reg").split("\n")[1:-2]]
+        elif value is None:  # get the value of the register
+            res = [self.execute(f"reg {name} {force}").split()]
         else:  # we set the value
-            res = self.execute(f"reg {name} {hex(value)}").split()
-        return {res[0]: self.__to_data_entry(int(res[1][2:-2]), res[2], len(res) == 4)}
+            res = [self.execute(f"reg {name} {hex(value)}").split()]
+        data = {}
+
+        for reg in res:
+            key, value = self.__to_data_entry(reg)
+            data[key] = value
+        return data
 
     def get_reg(self, registers: Tuple[str], force: Optional[bool] = None):
-        force = "-force" if force else ""
-        regs = " ".join(registers)
-        self.execute(f"get_reg {force} {{ {regs} }}")
+        pass
+        # force = "-force" if force else ""
+        # regs = " ".join(registers)
+        # self.execute(f"get_reg {force} {{ {regs} }}")
 
     def connect(self):
         """Establish a connection to the OpenOCD server."""
@@ -119,6 +139,7 @@ class BitFlip(Enum):
     ONE_TO_ONE = 1
     ZERO_TO_ONE = 2
     ONE_TO_ZERO = 3
+
 
 def diff(pre, post) -> list[BitFlip]:
     flips = []
@@ -148,20 +169,26 @@ class Datapoint:
     def __post_init__(self):
         self.mem_diff = self._calc_mem_diff()
         self.reg_diff = self._calc_reg_diff()
-        if not self.config.get("store_memory"): # does not store memory dump by default
+        if not self.config.get("store_memory"):  # does not store memory dump by default
             del self.mem_pre_fault
             del self.mem_post_fault
 
     def _calc_mem_diff(self):
         return {}
 
-    def _calc_reg_diff(self) -> dict:
-        assert self.regs_pre_fault.keys() == self.regs_post_fault.keys()
+    def _calc_reg_diff(self) -> Dict:
+        if self.regs_pre_fault.keys() != self.regs_post_fault.keys():
+            # some register values are not available
+            regs = set(self.regs_pre_fault.keys()).intersection(self.regs_post_fault.keys())
+        else:
+            regs = self.regs_pre_fault.keys()
         data = {}
-        for key in self.regs_pre_fault.keys():
-            distr = diff(self.regs_pre_fault[key]["Content"],
-                         self.regs_post_fault[key]["Content"])
-            data[key] = {
+        for reg in regs:
+            if self.regs_pre_fault[reg]["Corrupted"] or self.regs_post_fault[reg]["Corrupted"]:
+                data[reg] = "Corrupted"
+                continue
+            distr = diff(self.regs_pre_fault[reg]["Content"], self.regs_post_fault[reg]["Content"])
+            data[reg] = {
                 "Distribution": distr,
                 BitFlip.ZERO_TO_ZERO: distr.count(BitFlip.ZERO_TO_ZERO),
                 BitFlip.ONE_TO_ONE: distr.count(BitFlip.ONE_TO_ONE),
@@ -174,24 +201,28 @@ class Datapoint:
     def get_regs_flipped(self) -> Tuple[dict, bool]:
         data = {"0 -> 1": {}, "1 -> 0": {}}
         succ = False
-        for key, value in self.reg_diff.items():
+        for reg, value in self.reg_diff.items():
+            if value == "Corrupted":
+                # TODO log this
+                print(f"{reg} is corrupted!")
+                continue
             zto = value[BitFlip.ZERO_TO_ONE]
             otz = value[BitFlip.ONE_TO_ZERO]
             succ |= zto or otz
             if zto:
-                data["0 -> 1"][key] = {"Count": zto, "Indices:": [i for i, x in enumerate(value["Distribution"]) if
+                data["0 -> 1"][reg] = {"Count": zto,
+                                       "Indices:": [i for i, x in enumerate(value["Distribution"]) if
                                                                   x == BitFlip.ZERO_TO_ONE]}
-
             if otz:
-                data["1 -> 0"][key] = {"Count": otz, "Indices:": [i for i, x in enumerate(value["Distribution"]) if
+                data["1 -> 0"][reg] = {"Count": otz, "Indices:": [i for i, x in enumerate(value["Distribution"]) if
                                                                   x == BitFlip.ONE_TO_ZERO]}
         return data, succ
 
-class Probing(Attack):
-    to_bits = lambda x, bit_width: np.unpackbits(np.frombuffer(int(x, 16).to_bytes(bit_width, byteorder="big"), dtype=np.uint8),
-                                                 bitorder="big")[-bit_width:]
-    cs: ChipSHOUTER
 
+class Probing(Attack):
+    to_bits = lambda x, bit_width: np.unpackbits(
+        np.frombuffer(x.to_bytes(bit_width, byteorder="big"), dtype=np.uint8), bitorder="big")[-bit_width:]
+    cs: ChipSHOUTER
 
     def __init__(self):
         super().__init__(start_pos=(0, 48, 115),
@@ -200,12 +231,10 @@ class Probing(Attack):
                          max_target_temp=40,
                          cooling=1,
                          repetitions=3)
-
-        self.device = OpenOCD(value_cast=Probing.to_bits)
+        self.device = OpenOCD()
         self.device.connect()
         self.device.reset("halt")
-        self.reg_pre_fault = None
-        self.reg_post_fault = None
+        self.prev_reg = None
 
     @staticmethod
     def name() -> str:
@@ -229,8 +258,7 @@ class Probing(Attack):
             return
 
     def was_successful(self, aw) -> bool:
-        self.reg_post_fault = self.device.reg()
-        d = Datapoint(self.reg_pre_fault, self.reg_post_fault, aw.position, {}, None, None)
+        d = Datapoint(self.reg_pre_fault, self.device.reg(), aw.position, {}, None, None)
         flipped, succ = d.get_regs_flipped()
         if succ:
             aw.a_log.log(str(flipped))

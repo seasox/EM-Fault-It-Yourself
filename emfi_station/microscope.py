@@ -28,7 +28,9 @@ class Microscope:
     """
     Manages a microscope camera. Draws crosshairs.
     """
-    def __init__(self, product_id: str, vendor_id: str, idx: int, resolution: Optional[tuple[int, int]], draw_crosshair=True) -> None:
+
+    def __init__(self, product_id: str, vendor_id: str, idx: int = 0, resolution: Optional[tuple[int, int]] = None,
+                 draw_crosshair=True) -> None:
         """
         Initializes variables and logging. Loads unavailable image.
         :param product_id: Product ID of camera
@@ -62,7 +64,8 @@ class Microscope:
             if self.resolution is not None:
                 self.__set_resolution(*self.resolution)
         except FileNotFoundError:
-            self.log.critical('Camera is not available: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
+            self.log.critical(
+                'Camera is not available: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
 
     def __set_resolution(self, width: int, height: int) -> None:
         """
@@ -99,7 +102,8 @@ class Microscope:
         :return: None
         """
         if self.cam is None:
-            self.log.critical('Camera object not initialized: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
+            self.log.critical(
+                'Camera object not initialized: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
             return
         while self.running:
             success, image = self.cam.read()
@@ -108,7 +112,7 @@ class Microscope:
                 if len(self.frames) == 5:
                     self.frames = self.frames[1:]
                 self.frames.append(image)
-            #else:
+            # else:
             #    self.log.critical('Failed to read image from camera: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
 
     def get_frame(self) -> bytes:

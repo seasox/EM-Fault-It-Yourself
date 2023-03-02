@@ -39,8 +39,6 @@ class AttackLogger:
         """
         if self.file is not None:
             self.file.write(message + '\n')
-        else:
-            raise Exception('called log before file was created')
 
     def set_name(self, name: str) -> None:
         """
