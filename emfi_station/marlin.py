@@ -30,20 +30,24 @@ class Marlin:
     """
     Controls XYZ stage setup.
     """
-    def __init__(self, vendor_id: str, product_id: str, simulate: bool = False) -> None:
+
+    def __init__(self, vendor_id: str, product_id: str, idx: int = 0, simulate: bool = False,
+                 safe_z: int = None) -> None:
         """
         Connects to Marlin-based controller via serial port.
         Raises SerialException if serial port is unavailable.
         Raises IOError if board becomes unavailable.
         :param vendor_id: Vendor ID of board
         :param product_id: Product ID of board
+        :param idx: device index
         :param simulate: Simulate serial connection if True.
+        :param safe_z: Make sure the stage does not move below this value
         """
         self.log = logging.getLogger(__name__)
         tty = None
         try:
             if not simulate:
-                tty = get_device_fd(vendor_id, product_id, 'tty')
+                tty = get_device_fd(vendor_id, product_id, 'tty', idx=idx)
             else:
                 self.log.critical('Simulation active.')
         except FileNotFoundError:
@@ -51,7 +55,7 @@ class Marlin:
             simulate = True
         self.ser = MarlinSerial(tty, simulate)
         self.continuous_movement = None
-        self.safe_height = 100
+        self.safe_z = safe_z
 
     def close(self) -> None:
         """
@@ -266,12 +270,13 @@ class Marlin:
         self.ser.cmd(cmd)
         self.__wait_cmd_completed()
 
-    def home(self, x: bool = False, y: bool = False, z: bool = False) -> None:
+    def home(self, x: bool = False, y: bool = False, z: bool = False, force_homing=True) -> None:
         """
         Homes one or more axles (G28).
         :param x: Homes x axis if True.
         :param y: Homes y axis if True.
         :param z: Homes z axis if True.
+        :param force_homing: force homing of trusted axis
         :return: None
         """
         if x == y == z and not x:
@@ -283,6 +288,8 @@ class Marlin:
             cmd += ' Y'
         if z:
             cmd += ' Z'
+        if not force_homing:
+            cmd += ' O'
         self.ser.clear()
         self.ser.cmd(cmd)
         self.log.info('Homing axles: {:s}'.format(cmd.split('G28 ')[1]))
@@ -295,7 +302,7 @@ class Marlin:
         :return: None
         """
         self.log.info('Set safe z height to: {}'.format(z))
-        self.safe_height = z
+        self.safe_z = z
 
     def is_safe_height(self, z: float) -> bool:
         """
@@ -303,7 +310,7 @@ class Marlin:
         :param z: Z coordinate.
         :return: True if height is safe.
         """
-        if z > self.safe_height:
+        if z > self.safe_z:
             return False
         else:
             return True
@@ -323,6 +330,7 @@ class ContinuousMove:
     """
     Handles continuous movement.
     """
+
     def __init__(self, marlin: Marlin, feed_rate: int = 1) -> None:
         """
         Initializes but doesn't start continuous movement.

@@ -39,15 +39,16 @@ class WebSocketHelper:
         """
         self.log = logging.getLogger(__name__)
         self.importer = AttackImporter(config.attack_dir)
-        self.marlin = Marlin(*config.marlin, config.simulate)
-        self.microscope = Microscope(*config.positioning_cam, None)
-        self.calibration = Microscope(*config.calibration_cam, None)
+        self.marlin = Marlin(*config.marlin, simulate=config.simulate, safe_z=config.safe_z)
+        self.microscope = Microscope(*config.positioning_cam)
+        self.calibration = Microscope(*config.calibration_cam)
+        self.world = Microscope(*config.world_cam, draw_crosshair=False)
         self.thermal_camera = ThermalCamera()
         self.thermal_camera.start()
         self.attack_runner = AttackWorker(self.importer, self.marlin, self.thermal_camera, config.log_dir)
         self.joystick = None
         self.task = threading.Thread()
-        self.state = State(self.importer.get_attack_names())
+        self.state = State(self.importer.get_attack_names(), config.safe_z)
 
     def step(self, speed: float, x: float, y: float, z: float) -> bool:
         """
@@ -111,6 +112,7 @@ class WebSocketHelper:
         """
         self.microscope.start()
         self.calibration.start()
+        self.world.start()
 
     def on_last_disconnected(self) -> None:
         """
@@ -120,6 +122,7 @@ class WebSocketHelper:
         """
         self.microscope.stop()
         self.calibration.stop()
+        self.world.stop()
 
     def get_microscope_frame(self) -> str:
         """
@@ -141,6 +144,13 @@ class WebSocketHelper:
         :return: Base64 encoded image.
         """
         return base64.b64encode(self.calibration.get_frame()).decode()
+
+    def get_world_frame(self) -> str:
+        """
+        Retrieves an image from the world camera.
+        :return: Base64 encoded image.
+        """
+        return base64.b64encode(self.world.get_frame()).decode()
 
     def shutdown(self) -> None:
         """
@@ -217,8 +227,10 @@ class WebSocketHelper:
         :return: True if possible, False if not possible.
         """
         if self.state.attack_enabled() or self.state.joystick_enabled():
+            self.log.critical('Can\'t start attack: another attack is currently running or joystick is active')
             return False
         if not self.attack_runner.load_attack(name):
+            self.log.critical(f'Loading attack {name} failed')
             return False
         self.task = threading.Thread(target=self.attack_runner.run)
         self.task.start()

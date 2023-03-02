@@ -26,7 +26,7 @@ class State:
     JOYSTICK_MODE = 'Joystick'
     ATTACK_MODE = 'Attack'
 
-    def __init__(self, attacks) -> None:
+    def __init__(self, attacks, safe_z) -> None:
         """
         Initialize state
         :param attacks: List of available attack names
@@ -36,7 +36,7 @@ class State:
         self.temperature = 0
         self.progress = 0
         self.attacks = attacks
-        self.safe_z = 100
+        self.safe_z = safe_z
 
     def joystick_enabled(self) -> bool:
         """

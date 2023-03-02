@@ -28,16 +28,20 @@ class Microscope:
     """
     Manages a microscope camera. Draws crosshairs.
     """
-    def __init__(self, product_id: str, vendor_id: str, resolution: Optional[tuple[int, int]]) -> None:
+
+    def __init__(self, product_id: str, vendor_id: str, idx: int = 0, resolution: Optional[tuple[int, int]] = None,
+                 draw_crosshair=True) -> None:
         """
         Initializes variables and logging. Loads unavailable image.
         :param product_id: Product ID of camera
         :param vendor_id: Vendor ID of camera
+        :param idx: device index
         :param resolution: Camera resolution
         """
         self.log = logging.getLogger(__name__)
         self.cam = None
         self.unavailable = read_binary('emfi_station.web', 'cam_unavailable.png')
+        self.draw_crosshair = draw_crosshair
         self.running = False
         self.thread = None
         self.frames = []
@@ -45,6 +49,7 @@ class Microscope:
         self.thickness = 2
         self.product_id = product_id
         self.vendor_id = vendor_id
+        self.idx = idx
         self.resolution = resolution
         self.__init_cam()
 
@@ -54,12 +59,13 @@ class Microscope:
         :return: None
         """
         try:
-            video_dev = get_device_fd(self.vendor_id, self.product_id, 'video4linux')
+            video_dev = get_device_fd(self.vendor_id, self.product_id, 'video4linux', self.idx)
             self.cam = cv2.VideoCapture(video_dev)
             if self.resolution is not None:
                 self.__set_resolution(*self.resolution)
         except FileNotFoundError:
-            self.log.critical('Camera is not available: {:s}:{:s}'.format(self.vendor_id, self.product_id))
+            self.log.critical(
+                'Camera is not available: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
 
     def __set_resolution(self, width: int, height: int) -> None:
         """
@@ -96,6 +102,8 @@ class Microscope:
         :return: None
         """
         if self.cam is None:
+            self.log.critical(
+                'Camera object not initialized: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
             return
         while self.running:
             success, image = self.cam.read()
@@ -104,6 +112,8 @@ class Microscope:
                 if len(self.frames) == 5:
                     self.frames = self.frames[1:]
                 self.frames.append(image)
+            # else:
+            #    self.log.critical('Failed to read image from camera: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
 
     def get_frame(self) -> bytes:
         """
@@ -116,6 +126,8 @@ class Microscope:
             return self.unavailable
 
     def __draw_crosshairs(self, image: ndarray) -> ndarray:
+        if not self.draw_crosshair:
+            return image
         """
         Draws crosshairs on an image.
         :param image: Image to draw on.

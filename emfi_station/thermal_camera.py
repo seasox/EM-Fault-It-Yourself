@@ -54,7 +54,7 @@ class ThermalCamera:
             import busio
             i2c = busio.I2C(board.SCL, board.SDA, frequency=1000000)
             self.mlx = adafruit_mlx90640.MLX90640(i2c)
-            self.mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_16_HZ
+            self.mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ
         except Exception as e:
             self.log.critical('Init failed: ' + str(e))
 
@@ -68,8 +68,13 @@ class ThermalCamera:
         try:
             min_temp = 0
             while min_temp == 0:
-                self.mlx.getFrame(raw_image)
-                min_temp = np.min(raw_image)
+                for _ in range(10):
+                    try:
+                        self.mlx.getFrame(raw_image)
+                        min_temp = np.min(raw_image)
+                        break
+                    except RuntimeError:
+                        continue
             max_temp = np.max(raw_image)
             self.last_temperature = float(max_temp)
             uint_image = self.__temp_to_uint8(raw_image, min_temp, max_temp)

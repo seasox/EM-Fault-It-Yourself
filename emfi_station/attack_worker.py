@@ -55,10 +55,7 @@ class AttackWorker:
         """
         cls = self.importer.get_attack_by_name(name)
         self.a_log.set_name(name)
-        try:
-            self.attack = cls()
-        except TypeError:
-            return False
+        self.attack = cls()
         return True
 
     def get_progress(self) -> float:
@@ -86,7 +83,7 @@ class AttackWorker:
         self.a_log.log('Starting attack...')
         self.marlin.set_fan_speed(min(int(self.attack.cooling * 255), 255))
         positions = compute_positions(self.attack.start_pos, self.attack.end_pos, self.attack.step_size)
-        self.attack.init()
+        self.attack.init(self)
         self.__move_to_start()
         for i, pos in enumerate(positions):
             self.marlin.move(*pos, 100)
@@ -123,8 +120,8 @@ class AttackWorker:
         Homes each axis and moves to the first attack position.
         :return: None
         """
-        self.marlin.home(z=True)
-        self.marlin.home(x=True, y=True, z=False)
+        self.marlin.home(z=True, force_homing=False)
+        self.marlin.home(x=True, y=True, z=False, force_homing=False)
         self.marlin.move(x=self.attack.start_pos[0])
         self.marlin.move(y=self.attack.start_pos[1])
         self.marlin.move(z=self.attack.start_pos[2])

@@ -53,6 +53,9 @@ class MarlinSerial:
         """
         if self.sim:
             time.sleep(0.5)
+            if self.last_cmd == 'M114':  #  get current position
+                self.last_cmd = None
+                return b'X:0.00 Y:127.00 Z:145.00 E:0.00 Count X: 0 Y:10160 Z:116000\n'
             return b'ok\n'
         else:
             msg = self.ser.readline()
@@ -74,6 +77,7 @@ class MarlinSerial:
         :param cmd: Command string (e.g.: 'M122')
         :return: None
         """
+        self.last_cmd = cmd
         if self.sim:
             self.log.info('Sending: {:s}'.format(str(cmd)))
         else:

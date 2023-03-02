@@ -31,6 +31,10 @@ class EMFIStation:
         :param config: Configuration object.
         """
         self.log = logging.getLogger(__name__)
+        if config.log_dir:
+            logfile = f'{config.log_dir}/emfi_station.log'
+            print(f'logging to {logfile}')
+            logging.basicConfig(filename=config.log_dir, encoding='utf-8')
         path = __file__.rsplit('/', 1)[0] + '/web'
         WebServer(config.host, config.http_port, path)
         ws = WebSocketServer(config)

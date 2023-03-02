@@ -15,14 +15,18 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
-
+import abc
 
 class Attack:
+    @abc.abstractmethod
+    def __init__(self):
+        raise Exception()
+
     """
     Base class for the attack implementations.
     """
     def __init__(self, start_pos: tuple[float, float, float], end_pos: tuple[float, float, float], step_size: int,
-                 max_target_temp: float = 40, cooling: float = 0):
+            max_target_temp: float = 40, cooling: float = 0, repetitions: int = 0):
         """
         Initializes attack settings and attack hardware.
         :param start_pos: Start position of attack.
@@ -37,22 +41,21 @@ class Attack:
         self.step_size = step_size or 1
         self.max_target_temp = max_target_temp
         self.cooling = cooling
+        self.repetitions = repetitions
 
     @staticmethod
     def name() -> str:
-        """
-        Returns name of target/attack.
-        :return: Attack name
-        """
-        return 'Default'
+        raise Exception("No name set")
 
-    def init(self) -> None:
+    def init(self, aw) -> None:
         """
         Initialize hardware and define e.g. ChipShouter settings.
+        :param aw: AttackWorker
         :return: None
         """
         return None
 
+    @abc.abstractmethod
     def shout(self) -> None:
         """
         Shout procedure.
@@ -60,6 +63,7 @@ class Attack:
         """
         return None
 
+    @abc.abstractmethod
     def was_successful(self) -> bool:
         """
         Determines if attack was successful or not.
@@ -68,6 +72,7 @@ class Attack:
         """
         return False
 
+    @abc.abstractmethod
     def reset_target(self) -> None:
         """
         Resets the target after an attack.
@@ -75,6 +80,7 @@ class Attack:
         """
         return None
 
+    @abc.abstractmethod
     def critical_check(self) -> bool:
         """
         Runs critical checks after every shout. May wait some time.
@@ -82,3 +88,10 @@ class Attack:
         :return: True or False
         """
         return True
+
+    @abc.abstractmethod
+    def shutdown(self) -> None:
+        """
+        Shut down the attack, e.g. disarm ChipShouter, home or reset attack hardware.
+        """
+        return None
