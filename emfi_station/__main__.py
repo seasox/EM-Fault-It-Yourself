@@ -35,7 +35,7 @@ def main():
     parser = argparse.ArgumentParser(description='EMFI Station - Orchestrate electromagnetic fault injection attacks')
     parser.add_argument('-i', '--host', type=str, default='0.0.0.0', help='Hostname or ip address')
     parser.add_argument('-p', '--port', type=int, default='8080', help='The http port, websocket port = http port + 1)')
-    parser.add_argument('-s', '--simulate', action='store_true', default=True, help='Simulate connection to Marlin')
+    parser.add_argument('-s', '--simulate', action='store_true', default=False, help='Simulate connection to Marlin')
     parser.add_argument('-a', '--attack_dir', type=str, default='attacks', help='Attack scripts directory')
     parser.add_argument('-l', '--log_dir', type=str, default=None, help='Log files directory')
     # Devices:
