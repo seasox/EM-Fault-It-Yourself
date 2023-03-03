@@ -58,6 +58,11 @@ class OpenOCD:
         """Close the connection."""
         self._socket.close()
 
+    def get_reg_names(self):
+        names = self.reg().keys()
+        return names
+
+
     @staticmethod
     def __get_safe(reg: Any, start: int, end: int = None, step: int = 1, optional=None):
         if reg is None:
@@ -95,6 +100,22 @@ class OpenOCD:
         reg_name = reg_name or f"Corrupted_{str(uuid.uuid4())[:5]}"
 
         return reg_name, {"Width": bit_width, "Content": content, "Dirty": dirty, "Corrupted": corrupted}
+
+
+    def force_reg(self):
+        regs = self.reg()
+        res = self.execute(f"get_reg -force {{ {' '.join(regs.keys())} }}").split(" ")
+        data = {}
+        res = np.reshape(res, newshape=(2, -1))
+        for reg, content in zip(res[0], res[1]):
+            bit_width = reg[reg]["Width"]
+            data[reg] = {"Width": bit_width,
+                         "Content": self._value_cast(bit_width, int(content, 16)),
+                         "Dirty": False,
+                         "Corrupted": False}
+        return data
+
+
 
     def reg(self, name: Optional[str] = None, value: Optional[int] = None, force: Optional[bool] = None):
         if force and value:
@@ -239,6 +260,7 @@ class Probing(Attack):
                          repetitions=3)
         self.device = OpenOCD(value_cast=Probing.to_bits)
         self.device.connect()
+        self.reg_names = self.device.get_reg_names()
         self.device.reset("halt")
         # TODO make dynamic
         self.metric = Metric.AnyFlipAnywhere
@@ -280,7 +302,7 @@ class Probing(Attack):
         plt.show()
 
     def was_successful(self) -> bool:
-        d = Datapoint(self.prev_reg, self.device.reg(), self.aw.position, {}, None, None)
+        d = Datapoint(self.prev_reg, self.device.force_reg(), self.aw.position, {}, None, None)
         x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
         print(x,y,z)
         performance = d.evaluate(self.metric)
@@ -298,7 +320,7 @@ class Probing(Attack):
 
     def reset_target(self) -> None:
         self.device.reset("halt")
-        self.prev_reg = self.device.reg()
+        self.prev_reg = self.device.force_reg()
 
     def critical_check(self) -> bool:
         return True
