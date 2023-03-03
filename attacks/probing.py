@@ -139,7 +139,6 @@ class Metric(Enum):
     AnyFlipAnywhere = 1
 
 
-
 def diff(pre, post) -> list[BitFlip]:
     flips = []
     for a, b in zip(pre, post):
@@ -222,9 +221,8 @@ class Datapoint:
         """
         Returns how well this datapoint performed given some metric
         """
-        match type(m):
-            case Metric.AnyFlipAnywhere:
-                return self.regs_flipped["total"] > 0
+        if m == Metric.AnyFlipAnywhere:
+            return self.regs_flipped["total"] > 0
 
 
 class Probing(Attack):
@@ -281,7 +279,6 @@ class Probing(Attack):
         plt.colorbar()
         plt.show()
 
-
     def was_successful(self) -> bool:
         d = Datapoint(self.prev_reg, self.device.reg(), self.aw.position, {}, None, None)
         x, y, z = np.array(self.aw.position) // self.step_size
@@ -289,9 +286,8 @@ class Probing(Attack):
         self.dp_matrix_loc[x][y][z] = performance
         success = False
 
-        match self.metric:
-            case Metric.AnyFlipAnywhere:
-                success = performance > 0
+        if self.metric == Metric.AnyFlipAnywhere:
+            success = performance > 0
 
         if success:
             self.aw.a_log.log(str(d.regs_flipped))
@@ -308,6 +304,7 @@ class Probing(Attack):
 
     def shutdown(self) -> None:
         self.cs.armed = 0
+
 
 if __name__ == '__main__':
     Probing().init(None)
