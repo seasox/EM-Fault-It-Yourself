@@ -231,13 +231,13 @@ class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(0, 48, 115),
-                         end_pos=(14, 63, 115),
+        super().__init__(start_pos=(0, 48, 125),
+                         end_pos=(14, 63, 125),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
                          repetitions=3)
-        self.device = OpenOCD()
+        self.device = OpenOCD(value_cast=Probing.to_bits)
         self.device.connect()
         self.device.reset("halt")
         # TODO make dynamic
@@ -281,7 +281,8 @@ class Probing(Attack):
 
     def was_successful(self) -> bool:
         d = Datapoint(self.prev_reg, self.device.reg(), self.aw.position, {}, None, None)
-        x, y, z = np.array(self.aw.position) // self.step_size
+        x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
+        print(x,y,z)
         performance = d.evaluate(self.metric)
         self.dp_matrix_loc[x][y][z] = performance
         success = False
