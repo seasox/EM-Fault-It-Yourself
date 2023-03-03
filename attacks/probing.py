@@ -222,7 +222,7 @@ class Datapoint:
         Returns how well this datapoint performed given some metric
         """
         if m == Metric.AnyFlipAnywhere:
-            return self.regs_flipped["total"] > 0
+            return self.regs_flipped["total"]
 
 
 class Probing(Attack):
@@ -252,7 +252,7 @@ class Probing(Attack):
 
     def __init_dp_matrix(self):
         dx, dy, dz = (np.array(self.end_pos) - self.start_pos) // self.step_size  # how many dps in each dim
-        return np.zeros((dx, dy, max(dz, 1)))
+        return np.zeros((dx + 1, dy + 1, dz + 1))
 
     def init(self, aw) -> None:
         self.aw = aw
