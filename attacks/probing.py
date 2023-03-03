@@ -59,7 +59,7 @@ class OpenOCD:
         self._socket.close()
 
     @staticmethod
-    def __get_safe(reg: Any | None, start: int, end: int = None, step: int = 1, optional=None):
+    def __get_safe(reg: Any, start: int, end: int = None, step: int = 1, optional=None):
         if reg is None:
             return optional
         if end is None:
@@ -70,7 +70,7 @@ class OpenOCD:
         else:
             return reg[start:end:step]
 
-    def __to_data_entry(self, res_fields: List[str] | None):
+    def __to_data_entry(self, res_fields: List):
         reg_name = OpenOCD.__get_safe(res_fields, 0)
         bit_width_raw = OpenOCD.__get_safe(res_fields, 1)
         bit_width = OpenOCD.__get_safe(bit_width_raw, 2, -2)
