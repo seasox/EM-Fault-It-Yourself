@@ -54,6 +54,7 @@ class Marlin:
             self.log.critical('Marlin board unavailable. Simulation active.')
             simulate = True
         self.ser = MarlinSerial(tty, simulate)
+        self.ser.cmd('M211 S0')
         self.continuous_movement = None
         self.safe_z = safe_z
 
