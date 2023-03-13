@@ -6,9 +6,22 @@ from enum import Enum
 from pprint import pprint
 import numpy as np
 from chipshouter import ChipSHOUTER
+
 from emfi_station import Attack
-from typing import Tuple, Optional, Callable, Any, List, Dict
+from typing import Tuple, Optional, Callable, Any, List, Dict, Type, Generic, TypeVar
 from typing_extensions import Literal
+
+import pystlink
+
+_ReadingType = TypeVar('_ReadingType')  # this is a generic representing the value_cast return type (e.g., np.array)
+
+@dataclass
+class RegisterReading(Generic[_ReadingType]):
+    width: int
+    # noinspection PyUnresolvedReferences
+    content: '_ReadingType'  # TODO weird warning, maybe https://github.com/python/mypy/issues/7520
+    dirty: bool
+    corrupted: bool
 
 
 class OpenOCD:
@@ -175,9 +188,9 @@ def diff(pre, post) -> list[BitFlip]:
 
 
 @dataclass
-class Datapoint:
-    regs_pre_fault: dict[dict]
-    regs_post_fault: dict[dict]
+class Datapoint(Generic[_ReadingType]):
+    regs_pre_fault: dict[str, RegisterReading[_ReadingType]]
+    regs_post_fault: dict[str, RegisterReading[_ReadingType]]
     attack_location: Tuple[int, int, int]
     config: dict
     mem_pre_fault: np.array
@@ -205,10 +218,10 @@ class Datapoint:
             regs = self.regs_pre_fault.keys()
         data = {}
         for reg in regs:
-            if self.regs_pre_fault[reg]["Corrupted"] or self.regs_post_fault[reg]["Corrupted"]:
+            if self.regs_pre_fault[reg].corrupted or self.regs_post_fault[reg].corrupted:
                 data[reg] = "Corrupted"
                 continue
-            distr = diff(self.regs_pre_fault[reg]["Content"], self.regs_post_fault[reg]["Content"])
+            distr = diff(self.regs_pre_fault[reg].content, self.regs_post_fault[reg].content)
             data[reg] = {
                 "Distribution": distr,
                 BitFlip.ZERO_TO_ZERO: distr.count(BitFlip.ZERO_TO_ZERO),
@@ -246,6 +259,62 @@ class Datapoint:
             return self.regs_flipped["total"]
 
 
+class STLinkComm(Generic[_ReadingType]):
+    """
+    This class encapsulates the pystlink library. It allows to easily reset and get all registers from an attached
+    STLink capable device from your attack. It is generified over _ReadingType, which is the return type of your
+    value_cast callback (see initializer doc).
+    """
+
+    _driver: pystlink.lib.stm32.Stm32
+
+    """
+    Initialize the STLinkComm. The driver to use depends on the specific MCU attached. Take a look at the output of 
+    pystlink/pystlink.py to figure out which driver to use for your MCU. In doubt, a 
+    `grep -R 'STM32F{YOURMCU}' pystlink/'
+    might help. Additionally, you may pass a `value_cast' to transform readings into a data format appropriate for your
+    use case. value_cast takes an integer reading `x' as well as a bit_width (e.g. 16 or 32) and transforms those into
+    a format suitable for your custom analysis (e.g., np.array).
+    """
+    def __init__(self, driver: pystlink.lib.stm32.Stm32, value_cast: Callable[[int, int], _ReadingType] = lambda x, bit_width: x):
+        self._driver = driver
+        self._value_cast = value_cast
+
+    """
+    reset the chip, optionally halting after reset
+    """
+    def reset(self, cmd: Literal[None, 'halt']):
+        if not cmd:
+            self._driver.core_reset()
+        if cmd == 'halt':
+            self._driver.core_reset_halt()
+            return
+        raise Exception(f'unknown cmd "{cmd}"')
+
+    """
+    Get a list of all register names
+    """
+    def get_reg_names(self) -> List[str]:
+        return pystlink.lib.stm32.Stm32.REGISTERS
+
+    """
+    Get register values.
+    
+    :return a name, value dictionary containing RegisterReadings, where values are cast by `value_cast'.  
+    """
+    def regs(self) -> dict[str, RegisterReading]:
+        readings = dict(self._driver.get_reg_all())
+        ret = {}
+        for k, v in readings.items():
+            ret[k] = RegisterReading(
+                width=32,  # TODO: bit_width depends on the MCU. We should query the driver for the register bit widths
+                content=self._value_cast(v, 32),
+                dirty=False,
+                corrupted=False,
+            )
+        return ret
+
+
 class Probing(Attack):
     to_bits = lambda x, bit_width: np.unpackbits(
         np.frombuffer(x.to_bytes(bit_width, byteorder="big"), dtype=np.uint8), bitorder="big")[-bit_width:]
@@ -258,8 +327,11 @@ class Probing(Attack):
                          max_target_temp=40,
                          cooling=1,
                          repetitions=3)
-        self.device = OpenOCD(value_cast=Probing.to_bits)
-        self.device.connect()
+        DBG_QUIET = 0  # use 0..3 to control debug output verbosity (0: quiet, 1: normal, 2: verbose, 3: debug)
+        dbg = pystlink.lib.dbg.Dbg(DBG_QUIET)
+        connector = pystlink.lib.stlinkusb.StlinkUsbConnector(dbg=dbg, serial=None, index=0)
+        stlink = pystlink.lib.stlinkv2.Stlink(connector, dbg=dbg)
+        self.device = STLinkComm(driver=pystlink.lib.stm32fs.Stm32FS(stlink, dbg), value_cast=Probing.to_bits)
         self.reg_names = self.device.get_reg_names()
         self.device.reset("halt")
         # TODO make dynamic
@@ -302,7 +374,7 @@ class Probing(Attack):
         plt.show()
 
     def was_successful(self) -> bool:
-        d = Datapoint(self.prev_reg, self.device.force_reg(), self.aw.position, {}, None, None)
+        d = Datapoint(self.prev_reg, self.device.regs(), self.aw.position, {}, None, None)
         x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
         print(x,y,z)
         performance = d.evaluate(self.metric)
@@ -320,7 +392,7 @@ class Probing(Attack):
 
     def reset_target(self) -> None:
         self.device.reset("halt")
-        self.prev_reg = self.device.force_reg()
+        self.prev_reg = self.device.regs()
 
     def critical_check(self) -> bool:
         return True
