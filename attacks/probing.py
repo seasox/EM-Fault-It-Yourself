@@ -193,8 +193,8 @@ class Datapoint(Generic[_ReadingType]):
     regs_post_fault: dict[str, RegisterReading[_ReadingType]]
     attack_location: Tuple[int, int, int]
     config: dict
-    mem_pre_fault: np.array
-    mem_post_fault: np.array
+    mem_pre_fault: Optional[np.array]
+    mem_post_fault: Optional[np.array]
     mem_diff: dict = field(init=False)
     reg_diff: dict = field(init=False)
     regs_flipped: dict = field(init=False)
@@ -204,8 +204,8 @@ class Datapoint(Generic[_ReadingType]):
         self.reg_diff = self._calc_reg_diff()
         self.regs_flipped = self._calc_regs_flipped()
         if not self.config.get("store_memory"):  # does not store memory dump by default
-            del self.mem_pre_fault
-            del self.mem_post_fault
+            self.mem_pre_fault = None
+            self.mem_post_fault = None
 
     def _calc_mem_diff(self):
         return {}
@@ -286,9 +286,10 @@ class STLinkComm(Generic[_ReadingType]):
     """
     reset the chip, optionally halting after reset
     """
-    def reset(self, cmd: Literal[None, 'halt']):
+    def reset(self, cmd: Literal[None, 'halt'] = None):
         if not cmd:
             self._driver.core_reset()
+            return
         if cmd == 'halt':
             self._driver.core_reset_halt()
             return
@@ -318,6 +319,7 @@ class STLinkComm(Generic[_ReadingType]):
         return ret
 
     def close(self):
+        self._connector.close()
 
 
 class Probing(Attack):
@@ -375,9 +377,10 @@ class Probing(Attack):
         plt.show()
 
     def was_successful(self) -> bool:
-        d = Datapoint(self.prev_reg, self.device.regs(), self.aw.position, {}, None, None)
+        regs = self.device.regs()
+        d = Datapoint(self.prev_reg, regs, self.aw.position, {}, None, None)
         x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
-        print(x,y,z)
+        print(f"{(x,y,z)}; LR: {self.prev_reg['LR'].content} -> {regs['LR'].content}")
         performance = d.evaluate(self.metric)
         self.dp_matrix_loc[x][y][z] = performance
         success = False
@@ -392,7 +395,8 @@ class Probing(Attack):
         return success
 
     def reset_target(self) -> None:
-        self.device.reset("halt")
+        self.device.reset('halt')
+        time.sleep(1)
         self.prev_reg = self.device.regs()
 
     def critical_check(self) -> bool:
@@ -400,6 +404,7 @@ class Probing(Attack):
 
     def shutdown(self) -> None:
         self.cs.armed = 0
+        self.device.close()
 
 
 if __name__ == '__main__':
