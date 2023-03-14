@@ -276,8 +276,11 @@ class STLinkComm(Generic[_ReadingType]):
     use case. value_cast takes an integer reading `x' as well as a bit_width (e.g. 16 or 32) and transforms those into
     a format suitable for your custom analysis (e.g., np.array).
     """
-    def __init__(self, driver: pystlink.lib.stm32.Stm32, value_cast: Callable[[int, int], _ReadingType] = lambda x, bit_width: x):
-        self._driver = driver
+    def __init__(self, serial: str, value_cast: Callable[[int, int], _ReadingType] = lambda x, bit_width: x):
+        DBG_QUIET = 0  # use 0..3 to control debug output verbosity (0: quiet, 1: normal, 2: verbose, 3: debug)
+        dbg = pystlink.lib.dbg.Dbg(DBG_QUIET)
+        self._connector = pystlink.lib.stlinkusb.StlinkUsbConnector(dbg=dbg, serial=serial, index=0)
+        self._driver = pystlink.lib.stm32fs.Stm32FS(pystlink.lib.stlinkv2.Stlink(self._connector, dbg=dbg), dbg)
         self._value_cast = value_cast
 
     """
@@ -314,6 +317,8 @@ class STLinkComm(Generic[_ReadingType]):
             )
         return ret
 
+    def close(self):
+
 
 class Probing(Attack):
     to_bits = lambda x, bit_width: np.unpackbits(
@@ -327,11 +332,7 @@ class Probing(Attack):
                          max_target_temp=40,
                          cooling=1,
                          repetitions=3)
-        DBG_QUIET = 0  # use 0..3 to control debug output verbosity (0: quiet, 1: normal, 2: verbose, 3: debug)
-        dbg = pystlink.lib.dbg.Dbg(DBG_QUIET)
-        connector = pystlink.lib.stlinkusb.StlinkUsbConnector(dbg=dbg, serial=None, index=0)
-        stlink = pystlink.lib.stlinkv2.Stlink(connector, dbg=dbg)
-        self.device = STLinkComm(driver=pystlink.lib.stm32fs.Stm32FS(stlink, dbg), value_cast=Probing.to_bits)
+        self.device = STLinkComm(serial="0671FF3837334D4E43054345", value_cast=Probing.to_bits)
         self.reg_names = self.device.get_reg_names()
         self.device.reset("halt")
         # TODO make dynamic
