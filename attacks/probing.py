@@ -11,7 +11,7 @@ from emfi_station import Attack
 from typing import Tuple, Optional, Callable, Any, List, Dict, Type, Generic, TypeVar
 from typing_extensions import Literal
 
-import pystlink
+from attacks import pystlink
 
 _ReadingType = TypeVar('_ReadingType')  # this is a generic representing the value_cast return type (e.g., np.array)
 
