@@ -85,28 +85,32 @@ class AttackWorker:
         positions = compute_positions(self.attack.start_pos, self.attack.end_pos, self.attack.step_size)
         self.attack.init(self)
         self.__move_to_start()
-        for i, pos in enumerate(positions):
-            self.marlin.move(*pos, 100)
-            self.position = pos
-            for j in range(self.attack.repetitions):
-                self.progress = (i + j) / (len(positions) * self.attack.repetitions)
+        try:
+            for i, pos in enumerate(positions):
                 if not self.running:
-                    return
-                self.attack.reset_target()
-                self.attack.shout()
-                if self.attack.was_successful():
-                    self.log.critical('Successful at ' + str(pos))
-                    self.a_log.log('Successful at ' + str(pos))
-                else:
-                    self.a_log.log('Unsuccessful at ' + str(pos))
-                if not self.attack.critical_check():
-                    self.log.critical('Critical attack check failed.')
-                    return
-                if not self.__check_temp():
-                    time.sleep(20)
-        self.attack.shutdown()
-        self.a_log.log('Stopping attack...')
-        self.a_log.close()
+                    break
+                self.marlin.move(*pos, 100)
+                self.position = pos
+                for j in range(self.attack.repetitions):
+                    if not self.running:
+                        break
+                    self.progress = (i + j) / (len(positions) * self.attack.repetitions)
+                    self.attack.reset_target()
+                    self.attack.shout()
+                    if self.attack.was_successful():
+                        self.log.critical('Successful at ' + str(pos))
+                        self.a_log.log('Successful at ' + str(pos))
+                    else:
+                        self.a_log.log('Unsuccessful at ' + str(pos))
+                    if not self.attack.critical_check():
+                        self.log.critical('Critical attack check failed.')
+                        raise Exception('Critical attack check failed')
+                    if not self.__check_temp():
+                        time.sleep(20)
+        finally:
+            self.attack.shutdown()
+            self.a_log.log('Stopping attack...')
+            self.a_log.close()
 
     def stop(self) -> None:
         """
