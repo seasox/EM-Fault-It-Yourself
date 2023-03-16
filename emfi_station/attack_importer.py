@@ -43,8 +43,10 @@ class AttackImporter:
         """
         path = os.path.abspath(path)
         for src_file in [f[:-3] for f in os.listdir(path) if f.endswith('.py') and f != '__init__.py']:
+            import sys
             spec = importlib.util.spec_from_file_location(src_file, path + '/' + src_file + '.py')
             mod = importlib.util.module_from_spec(spec)
+            sys.modules[src_file] = mod
             spec.loader.exec_module(mod)
             for attribute_name in dir(mod):
                 attribute = getattr(mod, attribute_name)
