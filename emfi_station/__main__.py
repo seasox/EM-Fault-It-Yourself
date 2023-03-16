@@ -37,7 +37,7 @@ def main():
     parser.add_argument('-p', '--port', type=int, default='8080', help='The http port, websocket port = http port + 1)')
     parser.add_argument('-s', '--simulate', action='store_true', default=False, help='Simulate connection to Marlin')
     parser.add_argument('-a', '--attack_dir', type=str, default='attacks', help='Attack scripts directory')
-    parser.add_argument('-l', '--log_dir', type=str, default=None, help='Log files directory')
+    parser.add_argument('-l', '--log_dir', type=str, default='log', help='Log files directory')
     # Devices:
     parser.add_argument('--marlin', type=str, nargs='*', default=('0483', '5740', 0),
                         help='The device information of marlin board. Format: vendor_id product_id [index]')
