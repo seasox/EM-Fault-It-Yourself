@@ -276,11 +276,11 @@ class STLinkComm(Generic[_ReadingType]):
     use case. value_cast takes an integer reading `x' as well as a bit_width (e.g. 16 or 32) and transforms those into
     a format suitable for your custom analysis (e.g., np.array).
     """
-    def __init__(self, serial: str, value_cast: Callable[[int, int], _ReadingType] = lambda x, bit_width: x):
-        DBG_QUIET = 0  # use 0..3 to control debug output verbosity (0: quiet, 1: normal, 2: verbose, 3: debug)
-        dbg = pystlink.lib.dbg.Dbg(DBG_QUIET)
+    def __init__(self, serial: Optional[str], value_cast: Callable[[int, int], _ReadingType] = lambda x, bit_width: x):
+        DBG_MODE = 3  # use 0..3 to control debug output verbosity (0: quiet, 1: normal, 2: verbose, 3: debug)
+        dbg = pystlink.lib.dbg.Dbg(DBG_MODE)
         self._connector = pystlink.lib.stlinkusb.StlinkUsbConnector(dbg=dbg, serial=serial, index=0)
-        self._driver = pystlink.lib.stm32fs.Stm32FS(pystlink.lib.stlinkv2.Stlink(self._connector, dbg=dbg), dbg)
+        self._driver = pystlink.lib.stm32l0.Stm32L0(pystlink.lib.stlinkv2.Stlink(self._connector, dbg=dbg), dbg)
         self._value_cast = value_cast
 
     """
@@ -328,15 +328,17 @@ class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(0, 48, 125),
-                         end_pos=(14, 63, 125),
+        #super().__init__(start_pos=(1, 62, 115),
+        #                 end_pos=(14, 75, 115),
+        super().__init__(start_pos=(4, 64, 115),
+                         end_pos=(14, 75, 115),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
                          repetitions=3)
-        self.device = STLinkComm(serial="0671FF3837334D4E43054345", value_cast=Probing.to_bits)
-        self.reg_names = self.device.get_reg_names()
-        self.device.reset("halt")
+        #self.device = STLinkComm(serial=None, value_cast=Probing.to_bits)
+        #self.reg_names = self.device.get_reg_names()
+        #self.device.reset("halt")
         # TODO make dynamic
         self.metric = Metric.AnyFlipAnywhere
         self.prev_reg = None
@@ -361,12 +363,15 @@ class Probing(Attack):
     def shout(self) -> None:
         while True:
             try:
+                print('shout try')
                 if not self.cs.armed:
                     self.cs.armed = True
                     time.sleep(1)
                 self.cs.pulse = True
+                print('shout success')
             except Exception as e:
-                self.log(e)
+                self.log.warning(e)
+                time.sleep(1)
                 continue
             return
 
@@ -377,6 +382,7 @@ class Probing(Attack):
         plt.show()
 
     def was_successful(self) -> bool:
+        return False
         regs = self.device.regs()
         d = Datapoint(self.prev_reg, regs, self.aw.position, {}, None, None)
         x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
@@ -395,16 +401,21 @@ class Probing(Attack):
         return success
 
     def reset_target(self) -> None:
+        time.sleep(1)
+        return
+        print('do reset')
         self.device.reset('halt')
         time.sleep(1)
+        print('get regs after reset')
         self.prev_reg = self.device.regs()
+        print('reset done')
 
     def critical_check(self) -> bool:
         return True
 
     def shutdown(self) -> None:
         self.cs.armed = 0
-        self.device.close()
+        #self.device.close()
 
 
 if __name__ == '__main__':
