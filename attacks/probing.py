@@ -106,18 +106,16 @@ class OpenOCD:
         regs = self.reg()
         res = self.execute(f"get_reg -force {{ {' '.join(regs.keys())} }}").split(" ")
         data = {}
-        res = np.reshape(res, newshape=(2, -1))
-        for reg, content in zip(res[0], res[1]):
-            bit_width = reg[reg]["Width"]
+        res = np.reshape(res, newshape=(-1, 2))
+        for reg, content in res:
+            bit_width = regs[reg]["Width"]
             data[reg] = {"Width": bit_width,
-                         "Content": self._value_cast(bit_width, int(content, 16)),
+                         "Content": self._value_cast(int(content, 16), bit_width),
                          "Dirty": False,
                          "Corrupted": False}
         return data
 
-
-
-    def reg(self, name: Optional[str] = None, value: Optional[int] = None, force: Optional[bool] = None):
+    def reg(self, name: Optional[str] = None, value: Optional[int] = None, force: bool = False):
         if force and value:
             return None
         force = "-force" if force else ""
