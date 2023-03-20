@@ -3,10 +3,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pprint import pprint
 import numpy as np
+from attacks.probing import STLinkComm
 from chipshouter import ChipSHOUTER
 
 from emfi_station import Attack
 from typing import Tuple, Optional, Dict, Generic
+import spidev
 
 class BitFlip(Enum):
     ZERO_TO_ZERO = 0
@@ -17,20 +19,6 @@ class BitFlip(Enum):
 
 class Metric(Enum):
     AnyFlipAnywhere = 1
-
-
-def diff(pre, post) -> list[BitFlip]:
-    flips = []
-    for a, b in zip(pre, post):
-        if a == b == 0:
-            flips.append(BitFlip.ZERO_TO_ZERO)
-        elif a == b == 1:
-            flips.append(BitFlip.ONE_TO_ONE)
-        elif a == 0 and b == 1:
-            flips.append(BitFlip.ZERO_TO_ONE)
-        else:
-            flips.append(BitFlip.ONE_TO_ZERO)
-    return flips
 
 
 @dataclass
@@ -53,21 +41,29 @@ class Datapoint():
             self.mem_pre_fault = None
             self.mem_post_fault = None
 
+    @staticmethod
+    def _diff(pre, post) -> list[BitFlip]:
+        flips = []
+        for a, b in zip(pre, post):
+            if a == b == 0:
+                flips.append(BitFlip.ZERO_TO_ZERO)
+            elif a == b == 1:
+                flips.append(BitFlip.ONE_TO_ONE)
+            elif a == 0 and b == 1:
+                flips.append(BitFlip.ZERO_TO_ONE)
+            else:
+                flips.append(BitFlip.ONE_TO_ZERO)
+        return flips
+
     def _calc_mem_diff(self):
         return {}
 
     def _calc_reg_diff(self) -> Dict:
-        if self.regs_pre_fault.keys() != self.regs_post_fault.keys():
-            # some register values are not available
-            regs = set(self.regs_pre_fault.keys()).intersection(self.regs_post_fault.keys())
-        else:
-            regs = self.regs_pre_fault.keys()
+        regs = set(self.regs_pre_fault.keys()).intersection(self.regs_post_fault.keys())
         data = {}
         for reg in regs:
-            if self.regs_pre_fault[reg].corrupted or self.regs_post_fault[reg].corrupted:
-                data[reg] = "Corrupted"
-                continue
-            distr = diff(self.regs_pre_fault[reg].content, self.regs_post_fault[reg].content)
+            distr = self._diff(self.regs_pre_fault[reg].content,
+                               self.regs_post_fault[reg].content)
             data[reg] = {
                 "Distribution": distr,
                 BitFlip.ZERO_TO_ZERO: distr.count(BitFlip.ZERO_TO_ZERO),
@@ -111,15 +107,17 @@ class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(0, 48, 125),
-                         end_pos=(14, 63, 125),
+        super().__init__(start_pos=(0, 48, 115),
+                         end_pos=(14, 63, 115),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
                          repetitions=3)
         self.device = STLinkComm(serial="0671FF3837334D4E43054345", value_cast=Probing.to_bits)
         self.reg_names = self.device.get_reg_names()
+        print(self.reg_names)
         self.device.reset("halt")
+        exit()
         # TODO make dynamic
         self.metric = Metric.AnyFlipAnywhere
         self.prev_reg = None

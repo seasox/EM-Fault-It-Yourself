@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import Generic, TypeVar, Callable, List
-
 from typing_extensions import Literal
 
 _ReadingType = TypeVar('_ReadingType')  # this is a generic representing the value_cast return type (e.g., np.array)
