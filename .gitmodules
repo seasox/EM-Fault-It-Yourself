@@ -1,3 +1,0 @@
-[submodule "attacks/pystlink"]
-	path = attacks/pystlink
-	url = https://github.com/seasox/pystlink
