@@ -1,5 +1,3 @@
-import socket
-import uuid
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -8,157 +6,7 @@ import numpy as np
 from chipshouter import ChipSHOUTER
 
 from emfi_station import Attack
-from typing import Tuple, Optional, Callable, Any, List, Dict, Type, Generic, TypeVar
-from typing_extensions import Literal
-
-from attacks import pystlink
-
-_ReadingType = TypeVar('_ReadingType')  # this is a generic representing the value_cast return type (e.g., np.array)
-
-@dataclass
-class RegisterReading(Generic[_ReadingType]):
-    width: int
-    # noinspection PyUnresolvedReferences
-    content: '_ReadingType'  # TODO weird warning, maybe https://github.com/python/mypy/issues/7520
-    dirty: bool
-    corrupted: bool
-
-
-class OpenOCD:
-    encoding = "utf-8"
-    EOF = bytes('\x1a', encoding=encoding)
-
-    def __init__(self, host='localhost', port=6666, _socket=None,
-                 value_cast: Callable[[int, int], Any] = lambda x, bit_width: x):
-        self._host = host
-        self._port = port
-        self._buffer_size = 4096
-        self._socket = _socket or socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._device_layout = None
-        self._value_cast = value_cast
-
-    def _recv(self):
-        data, tmp = bytes(), bytes()
-        while OpenOCD.EOF not in tmp:
-            tmp = self._socket.recv(self._buffer_size)
-            data += tmp
-        data = data.decode(OpenOCD.encoding).strip()
-        # Strip trailing EOF.
-        data = data[:-1]
-        return data
-
-    def execute(self, command: str):
-        data = command.encode(OpenOCD.encoding) + OpenOCD.EOF
-        self._socket.sendall(data)
-        try:
-            return self._recv()
-        except socket.timeout:
-            raise TimeoutError
-
-    def reset(self, param: Optional[Literal["run", "halt", "init"]] = None):
-        res = self.execute(f"reset {param if param else ''}")
-        print(res)
-
-    def halt(self, ms: Optional[int] = None):
-        """Halt the target execution."""
-        self.execute(f"halt {ms if ms else ''}")
-
-    def shutdown(self):
-        """Shutdown the OpenOCD server."""
-        self.execute("shutdown")
-
-    def close(self):
-        """Close the connection."""
-        self._socket.close()
-
-    def get_reg_names(self):
-        names = self.reg().keys()
-        return names
-
-
-    @staticmethod
-    def __get_safe(reg: Any, start: int, end: int = None, step: int = 1, optional=None):
-        if reg is None:
-            return optional
-        if end is None:
-            if start < len(reg):
-                return reg[start]
-            else:
-                return optional
-        else:
-            return reg[start:end:step]
-
-    def __to_data_entry(self, res_fields: List):
-        reg_name = OpenOCD.__get_safe(res_fields, 0)
-        bit_width_raw = OpenOCD.__get_safe(res_fields, 1)
-        bit_width = OpenOCD.__get_safe(bit_width_raw, 2, -2)
-        content = OpenOCD.__get_safe(res_fields, 2)
-        dirty = OpenOCD.__get_safe(res_fields, 3, optional=False)
-
-        if bit_width is not None:
-            try:
-                bit_width = int(bit_width, base=10)
-            except ValueError:
-                content = None  # cannot reliably determine register content
-                bit_width = None
-        if content is not None:
-            try:
-                content = self._value_cast(int(content, 16), bit_width)
-            except ValueError:
-                content = None
-
-        corrupted = any((reg_name is None,
-                         bit_width is None,
-                         content is None))
-        reg_name = reg_name or f"Corrupted_{str(uuid.uuid4())[:5]}"
-
-        return reg_name, {"Width": bit_width, "Content": content, "Dirty": dirty, "Corrupted": corrupted}
-
-
-    def force_reg(self):
-        regs = self.reg()
-        res = self.execute(f"get_reg -force {{ {' '.join(regs.keys())} }}").split(" ")
-        data = {}
-        res = np.reshape(res, newshape=(-1, 2))
-        for reg, content in res:
-            bit_width = regs[reg]["Width"]
-            data[reg] = {"Width": bit_width,
-                         "Content": self._value_cast(int(content, 16), bit_width),
-                         "Dirty": False,
-                         "Corrupted": False}
-        return data
-
-    def reg(self, name: Optional[str] = None, value: Optional[int] = None, force: bool = False):
-        if force and value:
-            return None
-        force = "-force" if force else ""
-        if name is None:
-            res = [reg.split()[1:] for reg in self.execute("reg").split("\n")[1:-2]]
-        elif value is None:  # get the value of the register
-            res = [self.execute(f"reg {name} {force}").split()]
-        else:  # we set the value
-            res = [self.execute(f"reg {name} {hex(value)}").split()]
-        data = {}
-
-        for reg in res:
-            key, value = self.__to_data_entry(reg)
-            data[key] = value
-        return data
-
-    def connect(self):
-        """Establish a connection to the OpenOCD server."""
-        self._socket.connect((self._host, self._port))
-
-    @property
-    def host(self):
-        """Hostname of the OpenOCD server."""
-        return self._host
-
-    @property
-    def port(self):
-        """Port number of the OpenOCD Tcl interface."""
-        return self._port
-
+from typing import Tuple, Optional, Dict, Generic
 
 class BitFlip(Enum):
     ZERO_TO_ZERO = 0
@@ -186,9 +34,9 @@ def diff(pre, post) -> list[BitFlip]:
 
 
 @dataclass
-class Datapoint(Generic[_ReadingType]):
-    regs_pre_fault: dict[str, RegisterReading[_ReadingType]]
-    regs_post_fault: dict[str, RegisterReading[_ReadingType]]
+class Datapoint():
+    regs_pre_fault: dict
+    regs_post_fault: dict
     attack_location: Tuple[int, int, int]
     config: dict
     mem_pre_fault: Optional[np.array]
@@ -257,69 +105,6 @@ class Datapoint(Generic[_ReadingType]):
             return self.regs_flipped["total"]
 
 
-class STLinkComm(Generic[_ReadingType]):
-    """
-    This class encapsulates the pystlink library. It allows to easily reset and get all registers from an attached
-    STLink capable device from your attack. It is generified over _ReadingType, which is the return type of your
-    value_cast callback (see initializer doc).
-    """
-
-    _driver: pystlink.lib.stm32.Stm32
-
-    """
-    Initialize the STLinkComm. The driver to use depends on the specific MCU attached. Take a look at the output of 
-    pystlink/pystlink.py to figure out which driver to use for your MCU. In doubt, a 
-    `grep -R 'STM32F{YOURMCU}' pystlink/'
-    might help. Additionally, you may pass a `value_cast' to transform readings into a data format appropriate for your
-    use case. value_cast takes an integer reading `x' as well as a bit_width (e.g. 16 or 32) and transforms those into
-    a format suitable for your custom analysis (e.g., np.array).
-    """
-    def __init__(self, serial: str, value_cast: Callable[[int, int], _ReadingType] = lambda x, bit_width: x):
-        DBG_QUIET = 0  # use 0..3 to control debug output verbosity (0: quiet, 1: normal, 2: verbose, 3: debug)
-        dbg = pystlink.lib.dbg.Dbg(DBG_QUIET)
-        self._connector = pystlink.lib.stlinkusb.StlinkUsbConnector(dbg=dbg, serial=serial, index=0)
-        self._driver = pystlink.lib.stm32fs.Stm32FS(pystlink.lib.stlinkv2.Stlink(self._connector, dbg=dbg), dbg)
-        self._value_cast = value_cast
-
-    """
-    reset the chip, optionally halting after reset
-    """
-    def reset(self, cmd: Literal[None, 'halt'] = None):
-        if not cmd:
-            self._driver.core_reset()
-            return
-        if cmd == 'halt':
-            self._driver.core_reset_halt()
-            return
-        raise Exception(f'unknown cmd "{cmd}"')
-
-    """
-    Get a list of all register names
-    """
-    def get_reg_names(self) -> List[str]:
-        return pystlink.lib.stm32.Stm32.REGISTERS
-
-    """
-    Get register values.
-    
-    :return a name, value dictionary containing RegisterReadings, where values are cast by `value_cast'.  
-    """
-    def regs(self) -> dict[str, RegisterReading]:
-        readings = dict(self._driver.get_reg_all())
-        ret = {}
-        for k, v in readings.items():
-            ret[k] = RegisterReading(
-                width=32,  # TODO: bit_width depends on the MCU. We should query the driver for the register bit widths
-                content=self._value_cast(v, 32),
-                dirty=False,
-                corrupted=False,
-            )
-        return ret
-
-    def close(self):
-        self._connector.close()
-
-
 class Probing(Attack):
     to_bits = lambda x, bit_width: np.unpackbits(
         np.frombuffer(x.to_bytes(bit_width, byteorder="big"), dtype=np.uint8), bitorder="big")[-bit_width:]
@@ -378,7 +163,7 @@ class Probing(Attack):
         regs = self.device.regs()
         d = Datapoint(self.prev_reg, regs, self.aw.position, {}, None, None)
         x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
-        print(f"{(x,y,z)}; LR: {self.prev_reg['LR'].content} -> {regs['LR'].content}")
+        print(f"{(x, y, z)}; LR: {self.prev_reg['LR'].content} -> {regs['LR'].content}")
         performance = d.evaluate(self.metric)
         self.dp_matrix_loc[x][y][z] = performance
         success = False
