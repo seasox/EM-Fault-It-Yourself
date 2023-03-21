@@ -3,12 +3,10 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pprint import pprint
 import numpy as np
-from attacks.probing import STLinkComm
 from chipshouter import ChipSHOUTER
-
+from STLinkComm import STLinkComm
 from emfi_station import Attack
-from typing import Tuple, Optional, Dict, Generic
-import spidev
+from typing import Tuple, Optional, Dict
 
 class BitFlip(Enum):
     ZERO_TO_ZERO = 0
@@ -117,7 +115,6 @@ class Probing(Attack):
         self.reg_names = self.device.get_reg_names()
         print(self.reg_names)
         self.device.reset("halt")
-        exit()
         # TODO make dynamic
         self.metric = Metric.AnyFlipAnywhere
         self.prev_reg = None
