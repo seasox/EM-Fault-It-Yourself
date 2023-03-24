@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pprint import pprint
 
 from bitstring import BitArray
 
@@ -38,11 +39,11 @@ class Datapoint:
     def _diff(pre: Register, post: Register) -> list[BitFlip]:
         flips = []
         for a, b in zip(pre.data.bin, post.data.bin):
-            if a == b == 0:
+            if a == b == "0":
                 flips.append(BitFlip.ZERO_TO_ZERO)
-            elif a == b == 1:
+            elif a == b == "1":
                 flips.append(BitFlip.ONE_TO_ONE)
-            elif a == 0 and b == 1:
+            elif a == "0" and b == "1":
                 flips.append(BitFlip.ZERO_TO_ONE)
             else:
                 flips.append(BitFlip.ONE_TO_ZERO)
@@ -153,3 +154,7 @@ class Probing(Attack):
         self.cs.armed = 0
         self.device.open_ocd.halt()
         self.device.open_ocd.shutdown()
+
+
+if __name__ == '__main__':
+    Probing()
