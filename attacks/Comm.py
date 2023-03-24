@@ -156,7 +156,10 @@ class Comm:
 
         self.regs: List[str] = [f"r{i}" for i in range(regs)] if type(regs) is int else regs
         self.reg_size: List[int] = [reg_size] * len(self.regs) if type(reg_size) is int else reg_size
-        self.open_ocd: Optional[OpenOCD] = self.init_open_ocd() if init_open_ocd else None
+        self.open_ocd: Optional[OpenOCD] = None
+        if init_open_ocd:
+            self.init_open_ocd()
+
         assert len(self.regs) == len(self.reg_size), "All registers must have a corresponding size entry!"
         self.end_sequence = end_sequence
         assert self.end_sequence.len % 8 == 0, "End sequence length must be a multiple of 8"
