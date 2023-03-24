@@ -1,12 +1,15 @@
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from pprint import pprint
+
+from bitstring import BitArray
+
+from Comm import Comm, Register
 import numpy as np
 from chipshouter import ChipSHOUTER
-from STLinkComm import STLinkComm
 from emfi_station import Attack
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Dict, List, Any
+
 
 class BitFlip(Enum):
     ZERO_TO_ZERO = 0
@@ -20,29 +23,21 @@ class Metric(Enum):
 
 
 @dataclass
-class Datapoint():
-    regs_pre_fault: dict
-    regs_post_fault: dict
+class Datapoint:
+    regs_pre: Dict[str, Register]
+    regs_post: Dict[str, Register]
+
     attack_location: Tuple[int, int, int]
-    config: dict
-    mem_pre_fault: Optional[np.array]
-    mem_post_fault: Optional[np.array]
-    mem_diff: dict = field(init=False)
-    reg_diff: dict = field(init=False)
-    regs_flipped: dict = field(init=False)
+    reg_diff: Dict = field(init=False)
 
     def __post_init__(self):
-        self.mem_diff = self._calc_mem_diff()
-        self.reg_diff = self._calc_reg_diff()
-        self.regs_flipped = self._calc_regs_flipped()
-        if not self.config.get("store_memory"):  # does not store memory dump by default
-            self.mem_pre_fault = None
-            self.mem_post_fault = None
+        self.__keys = set(self.regs_pre.keys()).intersection(self.regs_post.keys())
+        self.reg_diff: Dict[str, List[BitFlip]] = self.__calc_reg_diff()
 
     @staticmethod
-    def _diff(pre, post) -> list[BitFlip]:
+    def _diff(pre: Register, post: Register) -> list[BitFlip]:
         flips = []
-        for a, b in zip(pre, post):
+        for a, b in zip(pre.data.bin, post.data.bin):
             if a == b == 0:
                 flips.append(BitFlip.ZERO_TO_ZERO)
             elif a == b == 1:
@@ -53,55 +48,28 @@ class Datapoint():
                 flips.append(BitFlip.ONE_TO_ZERO)
         return flips
 
-    def _calc_mem_diff(self):
-        return {}
-
-    def _calc_reg_diff(self) -> Dict:
-        regs = set(self.regs_pre_fault.keys()).intersection(self.regs_post_fault.keys())
+    def __calc_reg_diff(self) -> Dict[str, List[BitFlip]]:
         data = {}
-        for reg in regs:
-            distr = self._diff(self.regs_pre_fault[reg].content,
-                               self.regs_post_fault[reg].content)
-            data[reg] = {
-                "Distribution": distr,
-                BitFlip.ZERO_TO_ZERO: distr.count(BitFlip.ZERO_TO_ZERO),
-                BitFlip.ONE_TO_ONE: distr.count(BitFlip.ONE_TO_ONE),
-                BitFlip.ZERO_TO_ONE: distr.count(BitFlip.ZERO_TO_ONE),
-                BitFlip.ONE_TO_ZERO: distr.count(BitFlip.ONE_TO_ZERO),
-            }
-
+        for reg_name in self.__keys:
+            pre = self.regs_pre[reg_name]
+            post = self.regs_post[reg_name]
+            if pre.data is not None and post.data is not None:
+                data[reg_name] = self._diff(pre, post)
         return data
 
-    def _calc_regs_flipped(self) -> Dict:
-        data = {"total": 0, "0 -> 1": {}, "1 -> 0": {}}
-        for reg, value in self.reg_diff.items():
-            if value == "Corrupted":
-                print(f"{reg} is corrupted!")
-                continue
-            zto = value[BitFlip.ZERO_TO_ONE]
-            otz = value[BitFlip.ONE_TO_ZERO]
-            data["total"] += zto + otz
-            if zto:
-                data["0 -> 1"][reg] = {"Count": zto,
-                                       "Indices:": [i for i, x in enumerate(value["Distribution"]) if
-                                                    x == BitFlip.ZERO_TO_ONE]}
-            if otz:
-                data["1 -> 0"][reg] = {"Count": otz,
-                                       "Indices:": [i for i, x in enumerate(value["Distribution"]) if
-                                                    x == BitFlip.ONE_TO_ZERO]}
-        return data
-
-    def evaluate(self, m: Metric):
+    def evaluate(self, m: Metric) -> Any:
         """
         Returns how well this datapoint performed given some metric
         """
-        if m == Metric.AnyFlipAnywhere:
-            return self.regs_flipped["total"]
-
+        match m:
+            case Metric.AnyFlipAnywhere:
+                return sum([self.reg_diff[reg_name].count(BitFlip.ZERO_TO_ONE) +
+                            self.reg_diff[reg_name].count(BitFlip.ONE_TO_ZERO)
+                            for reg_name in self.reg_diff])
+            case _:
+                return 0
 
 class Probing(Attack):
-    to_bits = lambda x, bit_width: np.unpackbits(
-        np.frombuffer(x.to_bytes(bit_width, byteorder="big"), dtype=np.uint8), bitorder="big")[-bit_width:]
     cs: ChipSHOUTER
 
     def __init__(self):
@@ -111,15 +79,16 @@ class Probing(Attack):
                          max_target_temp=40,
                          cooling=1,
                          repetitions=3)
-        self.device = STLinkComm(serial="0671FF3837334D4E43054345", value_cast=Probing.to_bits)
-        self.reg_names = self.device.get_reg_names()
-        print(self.reg_names)
-        self.device.reset("halt")
-        # TODO make dynamic
         self.metric = Metric.AnyFlipAnywhere
         self.prev_reg = None
         self.aw = None
         self.dp_matrix_loc = None
+        self.device = Comm(miso_pin=21,
+                           clk_pin=23,
+                           regs=8,
+                           reg_size=4,
+                           end_sequence=BitArray(bin=f"1{'0' * 62}1"))
+        self.dp_matrix_loc = self.__init_dp_matrix()
 
     @staticmethod
     def name() -> str:
@@ -131,7 +100,6 @@ class Probing(Attack):
 
     def init(self, aw) -> None:
         self.aw = aw
-        self.dp_matrix_loc = self.__init_dp_matrix()
         self.cs = ChipSHOUTER("/dev/ttyUSB0")
         self.cs.voltage = 500
         self.cs.pulse.repeat = 9
@@ -150,40 +118,38 @@ class Probing(Attack):
 
     def visualize(self):
         import matplotlib.pyplot as plt
-        plt.imshow(self.dp_matrix_loc, cmap='viridis', interpolation='nearest')
+        plt.imshow(self.dp_matrix_loc[:, :, 0], cmap='viridis', interpolation='nearest')
         plt.colorbar()
         plt.show()
 
     def was_successful(self) -> bool:
-        regs = self.device.regs()
-        d = Datapoint(self.prev_reg, regs, self.aw.position, {}, None, None)
+        regs = self.device.read_regs()
+        d = Datapoint(self.prev_reg, regs, self.aw.position)
         x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
-        print(f"{(x, y, z)}; LR: {self.prev_reg['LR'].content} -> {regs['LR'].content}")
         performance = d.evaluate(self.metric)
         self.dp_matrix_loc[x][y][z] = performance
-        success = False
 
-        if self.metric == Metric.AnyFlipAnywhere:
-            success = performance > 0
+        match self.metric:
+            case Metric.AnyFlipAnywhere:
+                success = performance > 0
+            case _:
+                success = False
 
         if success:
-            self.aw.a_log.log(str(d.regs_flipped))
-            pprint(d.regs_flipped)
+            self.aw.a_log.log(str(d.reg_diff))
 
         return success
 
     def reset_target(self) -> None:
-        self.device.reset('halt')
+        self.device.open_ocd.reset("run")
         time.sleep(1)
-        self.prev_reg = self.device.regs()
+        # make sure device is running!
+        self.prev_reg = self.device.read_regs()
 
     def critical_check(self) -> bool:
         return True
 
     def shutdown(self) -> None:
         self.cs.armed = 0
-        self.device.close()
-
-
-if __name__ == '__main__':
-    Probing().init(None)
+        self.device.open_ocd.halt()
+        self.device.open_ocd.shutdown()
