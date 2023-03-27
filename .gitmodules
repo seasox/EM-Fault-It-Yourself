@@ -1,3 +1,0 @@
-[submodule "pystlink"]
-	path = connections/pystlink
-	url = https://github.com/seasox/pystlink
