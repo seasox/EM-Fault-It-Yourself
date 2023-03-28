@@ -103,8 +103,9 @@ class WebSocketServer:
                     success = self.helper.set_safe_z(msg['z'])
                 if not success:
                     await self.__send_error(websocket, 'An error occurred. Please check the logs.')
-            except ValueError:
+            except ValueError as e:
                 await self.__send_error(websocket, 'Please provide valid values.')
+                raise e
 
             await self.__send_state_update()
 

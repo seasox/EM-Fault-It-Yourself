@@ -54,6 +54,8 @@ void setup() {
 
 
 void loop() {
+while (1){
+
     asm volatile (
             "mov r0, #0\n"
             "mov r1, #1\n"
@@ -71,4 +73,5 @@ void loop() {
                  "pop {r0-r7}\n");
 
     _transfer(end_sequence, 8);
+    }
 }
