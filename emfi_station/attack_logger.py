@@ -39,6 +39,7 @@ class AttackLogger:
         """
         if self.file is not None:
             self.file.write(message + '\n')
+            self.file.flush()
 
     def set_name(self, name: str) -> None:
         """
@@ -58,7 +59,10 @@ class AttackLogger:
         now = datetime.now()
         filename = '{}_{}.log'.format(now.strftime("%Y-%m-%dT%H:%M:%S"), self.attack_name)
         if self.dir is not None:
-            self.file = open(self.dir + '/' + filename, 'w')
+            fname = self.dir + '/' + filename
+            self.file = open(fname, 'w')
+            if not self.file:
+                raise Exception(f'file open failed: {fname}')
 
     def close(self) -> None:
         """
