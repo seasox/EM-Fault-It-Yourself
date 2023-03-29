@@ -42,7 +42,7 @@ class Register:
 
 
 class STATUS(Enum):
-    EXPECTED_DATA_MISSMATCH = 0
+    EXPECTED_DATA_MISMATCH = 0
     RESET_UNSUCCESSFUL = 1
     END_SEQUENCE_FOUND = 2
 
@@ -207,7 +207,7 @@ class Comm:
         # Timing constants
         self.__low_time = .0001
         self.__high_time = .0001
-        self.__reset_time = 1
+        self.__reset_time = .5
 
         self.reset()
 
@@ -242,11 +242,11 @@ class Comm:
             self._high()
         return BitArray(bin=buffer)
 
-    def reset(self):
+    def reset(self, scale:float = 1):
         GPIO.output(self.reset_pin, 0)
-        time.sleep(self.__low_time)
+        time.sleep(self.__low_time * scale)
         GPIO.output(self.reset_pin, 1)
-        time.sleep(self.__reset_time)
+        time.sleep(self.__reset_time * scale)
 
     def read_regs(self, comp_expected=True) -> Response:
         buffer = self.read(self.buffer_size)
@@ -279,7 +279,7 @@ class Comm:
                 expected = self.expected_data[i]  # the value (int) we expect
                 del buffer[:bit_width]  # remove the bits from the buffer
                 missmatch = expected != actual.uintle
-                if missmatch: status.add(STATUS.EXPECTED_DATA_MISSMATCH) # we can check for this flag later
+                if missmatch: status.add(STATUS.EXPECTED_DATA_MISMATCH) # we can check for this flag later
                 _data[name] = Register(name, bit_width, actual, corrupted=missmatch)
             return _data
 

@@ -6,7 +6,7 @@
 #define MOSI_PIN  11
 
 auto clk_state = HIGH;
-const uint8_t end_sequence[8] = {0b10000000, 0, 0, 0, 0, 0, 0, 1};
+const uint8_t end_sequence[4] = {0x42, 0x42, 0x42, 0x42};
 
 
 inline void wait_falling() {
@@ -46,7 +46,7 @@ void _transfer(const uint8_t *ptr, uint32_t num_bytes) {
 }
 
 void setup() {
-    pinMode(SCK_PIN, INPUT);
+    pinMode(SCK_PIN);
     pinMode(MOSI_PIN, INPUT);
     pinMode(MISO_PIN, OUTPUT);
     clk_state = HIGH;
@@ -72,6 +72,7 @@ while (1){
                  "bl _transfer\n"
                  "pop {r0-r7}\n");
 
-    _transfer(end_sequence, 8);
+    _transfer(end_sequence, 4);
+
     }
 }
