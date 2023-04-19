@@ -1,7 +1,6 @@
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from pprint import pprint
 import pickle
 from bitstring import BitArray
 
@@ -10,7 +9,7 @@ from Comm import Comm, Register, Response, STATUS
 import numpy as np
 from chipshouter import ChipSHOUTER
 from emfi_station import Attack
-from typing import Tuple, Dict, List, Any
+from typing import Tuple, Dict, List
 
 
 class BitFlip(Enum):
@@ -105,8 +104,8 @@ class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(5, 63, 114),
-                         end_pos=(14, 73, 114),
+        super().__init__(start_pos=(5, 63, 115),
+                         end_pos=(14, 73, 115),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
@@ -118,32 +117,34 @@ class Probing(Attack):
 
         # Parameters based on behavior of Device firmware, using BCM pins
         self.reg_size = 4  # in bytes
-        self.regs = 8 # TODO change back to 8
+        self.regs = 8
         self.miso_pin = 9
         self.clk_pin = 11
         self.reset_pin = 0
 
         # The end sequence acts like a "checksum", if it is not transferred correctly, we cant be sure about the results
-        self.end_sequence = BitArray(bytes=b"\x42\x42\x42\x42")
-        self.expected_data = [i for i in range(self.regs)]  # each register sends its number
+        self.end_seq = BitArray(bytes=b"\x42\x42\x42\x42")
+        self.fault_window_start_seq = BitArray(bytes=b"\x2a\x2a\x2a\x2a")
+        self.fault_window_end_seq = BitArray(bytes=b"\x13\x37\x13\x37")
+        self.expected_data = [0,1,2,3,4,5,6,0]  # each register sends its number but 7 (it's used as round counter)
 
-        # FIXME it appears only 16 bytes are transferred correctly (3 regs and end sequence)
         self.device = Comm(miso_pin=self.miso_pin,
                            clk_pin=self.clk_pin,
                            reset_pin=self.reset_pin,
                            regs=self.regs,
                            reg_size=self.reg_size,
-                           end_sequence=self.end_sequence,
+                           fault_window_start_seq=self.fault_window_start_seq,
+                           fault_window_end_seq=self.fault_window_end_seq,
+                           end_seq=self.end_seq,
                            expected_data=self.expected_data)
+
         # Other parameters, watch out that dz is 0 if only one layer is attacked!
         self.dx, self.dy, self.dz = ((np.array(self.end_pos) - self.start_pos) // self.step_size)
-        self.max_reset_tries = 3
+        self.max_reset_tries = 5
 
         # The datapoints of a given x,y,z location
         self.dps: List[List[List[List[Datapoint]]]] = self.__init_dp_matrix()
         self.storage_fp = open("data.pickle", "wb")  # where we store the data later
-
-
 
     @staticmethod
     def name() -> str:
@@ -179,13 +180,11 @@ class Probing(Attack):
         performance = d.evaluate(self.metric)
         self.dps[x][y][z].append(d)
 
-        print(
-            f"Performance: {performance}, Status[before]: {self.response_before_fault.status}, Status[after]: {self.response_after_fault.status}")
+        #print(f"Performance: {performance}, Status[before]: {self.response_before_fault.status}, Status[after]: {self.response_after_fault.status}")
 
-        if STATUS.END_SEQUENCE_FOUND not in self.response_after_fault.status:
-            print(f"The following registers are EITHER faulted or incorrectly transmitted: {[reg_name for reg_name in self.response_after_fault.reg_data if self.response_after_fault.reg_data[reg_name].corrupted]}")
-            print(f"Received buffer after fault: {self.response_after_fault.raw}")
-
+        if STATUS.END_SEQUENCE_FOUND in self.response_after_fault.status and performance > 0:
+            print(
+                f"The following registers are faulted: {[reg_name for reg_name in self.response_after_fault.reg_data if self.response_after_fault.reg_data[reg_name].corrupted]}")
 
         match self.metric:
             case Metric.AnyFlipAnywhere:
@@ -206,6 +205,7 @@ class Probing(Attack):
                       and not STATUS.EXPECTED_DATA_MISMATCH in self.response_before_fault.status
             if success:
                 break
+            #print(f"Buffer: {self.response_before_fault.raw}")
             print("Resetting again...")
             if reset_cnt > self.max_reset_tries:
                 self.response_before_fault.status.add(STATUS.RESET_UNSUCCESSFUL)
@@ -222,3 +222,6 @@ class Probing(Attack):
         self.cs.armed = 0
         self.device.reset()
         print("End...")
+
+if __name__ == '__main__':
+    Probing()

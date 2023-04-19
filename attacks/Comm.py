@@ -170,7 +170,9 @@ class Comm:
                  reset_pin: int,
                  regs: int | List[str],
                  reg_size: int | List[int],
-                 end_sequence: BitArray,
+                 fault_window_start_seq:BitArray,
+                 fault_window_end_seq: BitArray,
+                 end_seq: BitArray,
                  expected_data: List[int] = None,
                  init_open_ocd=False):
 
@@ -190,11 +192,16 @@ class Comm:
         # init device specific config
         self.regs: List[str] = [f"r{i}" for i in range(regs)] if type(regs) is int else regs
         self.reg_size: List[int] = [reg_size] * len(self.regs) if type(reg_size) is int else reg_size
-        assert end_sequence.len % 8 == 0, "End sequence length must be a multiple of 8"
-        self.end_sequence = end_sequence
+        assert end_seq.len % 8 == 0, "End sequence length must be a multiple of 8"
+        assert fault_window_start_seq.len % 8 == 0, "Fault window start sequence length must be a multiple of 8"
+        assert fault_window_end_seq.len % 8 == 0, "Fault window end sequence length must be a multiple of 8"
+        self.end_seq = end_seq
+        self.fault_window_start_seq = fault_window_start_seq
+        self.fault_window_end_seq = fault_window_end_seq
         self.expected_data = expected_data
-        self.buffer_size = self.end_sequence.len // 8 + sum(self.reg_size)  # in bytes
-
+        self.end_seq_buffer_size = self.end_seq.len // 8 + sum(self.reg_size)  # in bytes
+        self.fault_window_start_seq_buffer_size = self.fault_window_start_seq.len // 8 # in bytes
+        self.fault_window_end_seq_buffer_size = self.fault_window_end_seq.len // 8 # in bytes
         # make sure parameters are allowed
         assert len(self.regs) == len(self.reg_size), "All registers must have a corresponding size entry!"
         assert self.expected_data is None or len(self.expected_data) == len(self.reg_size), "The expected data must have the same number of bytes as the registers that are read"
@@ -216,7 +223,7 @@ class Comm:
         self.open_ocd.connect()
 
     def find_end_sequence(self, data: BitArray) -> int:
-        matches = list(re.finditer(self.end_sequence.bin, data.bin))
+        matches = list(re.finditer(self.end_seq.bin, data.bin))
         if len(matches) == 1:
             return matches[0].start()
         if len(matches) > 1:
@@ -233,6 +240,8 @@ class Comm:
         time.sleep(self.__low_time)
 
     def read(self, num_bytes: int) -> BitArray:
+        # The device stalls after moving the data in the registers
+        assert GPIO.input(self.clk_pin)  # assumes a high output
         num_bits = num_bytes * 8
         buffer = ""
         for _ in range(num_bits):
@@ -248,14 +257,32 @@ class Comm:
         GPIO.output(self.reset_pin, 1)
         time.sleep(self.__reset_time * scale)
 
+    def wait_faulting_window_start(self) -> float:
+        start = time.time()
+        buffer = self.read(self.fault_window_start_seq_buffer_size)
+        while buffer != self.fault_window_start_seq:
+            next_byte = self.read(1)
+            buffer = BitArray(buffer[8:]) + next_byte
+        return time.time() - start
+
+    def wait_faulting_window_end(self) -> float:
+        start = time.time()
+        buffer = self.read(self.fault_window_end_seq_buffer_size)
+        while buffer != self.fault_window_end_seq:
+            next_byte = self.read(1)
+            buffer = BitArray(buffer[8:]) + next_byte
+        # wait a few cycles until device is ready to send the registers
+        time.sleep(.1)
+        return time.time() - start
+
     def read_regs(self, comp_expected=True) -> Response:
-        buffer = self.read(self.buffer_size)
+        buffer = self.read(self.end_seq_buffer_size)
         original_buffer = buffer.copy()
         status: set[STATUS] = set()
         try:
             idx = self.find_end_sequence(buffer) # try to find the end sequence in the buffer
             # End sequence was found at the end
-            if idx == len(buffer) - len(self.end_sequence):
+            if idx == len(buffer) - len(self.end_seq):
                 status.add(STATUS.END_SEQUENCE_FOUND)
         except IndexError:
             pass # we don't add the flag
@@ -291,7 +318,7 @@ class Comm:
             return Response(status, original_buffer, _parse_with_expected_data())
 
         if STATUS.END_SEQUENCE_FOUND not in status:
-            # we cannot know if register corrupted, thus we assume corrupted
+            # we cannot know if register corrupted or something else broke, thus we assume corrupted
             return Response(status, original_buffer, _parse_with_no_expected_data(corrupted=True))
 
         if STATUS.END_SEQUENCE_FOUND in status:
