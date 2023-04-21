@@ -41,9 +41,9 @@ def main():
     # Devices:
     parser.add_argument('--marlin', type=str, nargs='*', default=('0483', '5740', 0),
                         help='The device information of marlin board. Format: vendor_id product_id [index]')
-    parser.add_argument('--cal_cam', type=str, nargs='*', default=('0304', 'a16f', 1),
+    parser.add_argument('--cal_cam', type=str, nargs='*', default=('0304', 'a16f', 0),
                         help='The device information of calibration camera. Format: vendor_id product_id [index]')
-    parser.add_argument('--pos_cam', type=str, nargs='*', default=('0304', 'a16f', 0),
+    parser.add_argument('--pos_cam', type=str, nargs='*', default=('299f', 'eb1a', 0),
                         help='The device information of positioning camera. Format: vendor_id product_id [index]')
     parser.add_argument('--world_cam', type=str, nargs='*', default=('0779', '045e', 0),
                         help='The device information of world camera. Format: vendor_id product_id [index]')  # ('0304', 'a16f', 0)
