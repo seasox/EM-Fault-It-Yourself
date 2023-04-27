@@ -117,6 +117,7 @@ class AttackWorker:
         Stops a running attack.
         :return: None
         """
+        self.attack.shutdown()
         self.running = False
 
     def __move_to_start(self) -> None:

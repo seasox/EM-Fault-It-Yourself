@@ -1,4 +1,5 @@
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 import pickle
@@ -40,15 +41,19 @@ class Datapoint:
     response_before_fault: Response
     response_after_fault: Response
     attack_location: Tuple[int, int, int]
-    reg_diff: Dict[str, List[BitFlip]] = field(init=False)
-    __regs_before_fault: Dict[str, Register] = field(init=False)
-    __regs_after_fault: Dict[str, Register] = field(init=False)
+    reg_diff: Dict[str, List[BitFlip]] | None = field(init=False)
+    __regs_before_fault: Dict[str, Register] | None = field(init=False)
+    __regs_after_fault: Dict[str, Register] | None = field(init=False)
 
     def __post_init__(self):
         self.__regs_before_fault = self.response_before_fault.reg_data
         self.__regs_after_fault = self.response_after_fault.reg_data
-        self.__keys = set(self.__regs_before_fault.keys()).intersection(self.__regs_after_fault.keys())
-        self.reg_diff: Dict[str, List[BitFlip]] = self.__calc_reg_diff()
+        if self.__regs_before_fault is not None and self.__regs_after_fault is not None:
+            self.__keys = set(self.__regs_before_fault.keys()).intersection(self.__regs_after_fault.keys())
+            self.reg_diff: Dict[str, List[BitFlip]] = self.__calc_reg_diff()
+        else:
+            self.__keys = None
+            self.reg_diff = None
 
     @staticmethod
     def _diff(pre: Register, post: Register) -> list[BitFlip]:
@@ -66,7 +71,6 @@ class Datapoint:
 
     def __calc_reg_diff(self) -> Dict[str, List[BitFlip]]:
         data = {}
-
         for reg_name in self.__keys:
             pre = self.__regs_before_fault[reg_name]
             post = self.__regs_after_fault[reg_name]
@@ -90,11 +94,15 @@ class Datapoint:
         """
         Returns how well this datapoint performed given some metric. Either a positive value or -1 if unsuccessful
         """
-        if STATUS.RESET_UNSUCCESSFUL in self.response_before_fault.status:
+        # if sanity check was not successful no metric performs well..
+        if STATUS.RESET_UNSUCCESSFUL in self.response_before_fault.status :
             return -1
 
         match m:
             case Metric.AnyFlipAnywhere:
+                if STATUS.FAULT_WINDOW_TIMEOUT in self.response_after_fault.status\
+                        or STATUS.END_SEQUENCE_NOT_FOUND in self.response_after_fault.status:
+                    return -1 # a timeout or undefined behavior after fault is not what we expect here
                 return sum([self.get_01_flips(reg_name) + self.get_10_flips(reg_name) for reg_name in self.__keys])
             case _:
                 raise LookupError(f"Metric {str(m)} not covered")
@@ -104,8 +112,8 @@ class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(5, 63, 115),
-                         end_pos=(14, 73, 115),
+        super().__init__(start_pos=(5, 63, 112),
+                         end_pos=(14, 73, 112),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
@@ -121,6 +129,9 @@ class Probing(Attack):
         self.miso_pin = 9
         self.clk_pin = 11
         self.reset_pin = 0
+        self.dut_prep_time = .001
+        self.bus_id = "001"
+        self.device_id = "020"
 
         # The end sequence acts like a "checksum", if it is not transferred correctly, we cant be sure about the results
         self.end_seq = BitArray(bytes=b"\x42\x42\x42\x42")
@@ -135,16 +146,14 @@ class Probing(Attack):
                            reg_size=self.reg_size,
                            fault_window_start_seq=self.fault_window_start_seq,
                            fault_window_end_seq=self.fault_window_end_seq,
-                           end_seq=self.end_seq,
-                           expected_data=self.expected_data)
+                           reg_data_expected=self.expected_data)
 
         # Other parameters, watch out that dz is 0 if only one layer is attacked!
         self.dx, self.dy, self.dz = ((np.array(self.end_pos) - self.start_pos) // self.step_size)
-        self.max_reset_tries = 5
+        self.max_reset_tries = 3
 
         # The datapoints of a given x,y,z location
         self.dps: List[List[List[List[Datapoint]]]] = self.__init_dp_matrix()
-        self.storage_fp = open("data.pickle", "wb")  # where we store the data later
 
     @staticmethod
     def name() -> str:
@@ -161,30 +170,41 @@ class Probing(Attack):
         self.cs.pulse.repeat = 2
 
     def shout(self) -> None:
+        self.device.wait_fault_window_start()
         while True:
             try:
                 if not self.cs.armed:
                     self.cs.armed = True
-                    time.sleep(1)
+                    time.sleep(.5)
                 self.cs.pulse = True
             except Exception as e:
-                self.log(e)
+                self.log.error(e)
                 continue
             return
 
     def was_successful(self) -> bool:
-        self.response_after_fault = self.device.read_regs()
-        x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
+        time_taken = self.device.wait_fault_window_end()
+        if time_taken < 0: # a timeout
+            self.response_after_fault = Response({STATUS.FAULT_WINDOW_TIMEOUT}, None, None)
+        else: # we received the end_sequence
+            # wait and read regs
+            time.sleep(self.dut_prep_time)
+            self.response_after_fault = self.device.read_regs()
+            # wait and read end sequence
+            time.sleep(self.dut_prep_time)
+            _data = self.device.read(self.end_seq.len // 8)
+            if _data != self.end_seq:
+                self.response_after_fault.status.add(STATUS.END_SEQUENCE_NOT_FOUND)
 
+        x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
         d = Datapoint(self.response_before_fault, self.response_after_fault, (x, y, z))
         performance = d.evaluate(self.metric)
         self.dps[x][y][z].append(d)
 
-        #print(f"Performance: {performance}, Status[before]: {self.response_before_fault.status}, Status[after]: {self.response_after_fault.status}")
+        print(f"Performance: {performance}, Status[before]: {self.response_before_fault.status}, Status[after]: {self.response_after_fault.status}")
 
-        if STATUS.END_SEQUENCE_FOUND in self.response_after_fault.status and performance > 0:
-            print(
-                f"The following registers are faulted: {[reg_name for reg_name in self.response_after_fault.reg_data if self.response_after_fault.reg_data[reg_name].corrupted]}")
+        if performance > 0:
+            print(f"The following registers are faulted: {[reg_name for reg_name in self.response_after_fault.reg_data if self.response_after_fault.reg_data[reg_name].corrupted]}")
 
         match self.metric:
             case Metric.AnyFlipAnywhere:
@@ -199,26 +219,35 @@ class Probing(Attack):
         reset_cnt = 1
         while True:  # Python way of do ... while
             self.device.reset(reset_cnt)
+            time.sleep(self.dut_prep_time)
             self.response_before_fault = self.device.read_regs()
             reset_cnt += 1
-            success = STATUS.END_SEQUENCE_FOUND in self.response_before_fault.status \
-                      and not STATUS.EXPECTED_DATA_MISMATCH in self.response_before_fault.status
-            if success:
+            if STATUS.EXPECTED_DATA_MISMATCH not in self.response_before_fault.status:
                 break
-            #print(f"Buffer: {self.response_before_fault.raw}")
-            print("Resetting again...")
+            print("Resetting again... Buffer was:")
+            print(self.response_before_fault.reg_data)
             if reset_cnt > self.max_reset_tries:
                 self.response_before_fault.status.add(STATUS.RESET_UNSUCCESSFUL)
-                break
+                print("Hard resetting...")
+                succ = self.device.hard_reset(self.bus_id, self.device_id)
+                if not succ:
+                    self.response_before_fault.status.add(STATUS.HARD_RESET_UNSUCCESSFUL)
+                print("Flashing...")
+                self.device.flash_firmware()
+                self.device.reset()
+                time.sleep(self.dut_prep_time)
+                return
 
     def critical_check(self) -> bool:
         return True
 
     def shutdown(self) -> None:
-        # evaluate the data: TODO verify that this actually overrides this data
-        pickle.dump(self.dps, self.storage_fp)
-        self.storage_fp.flush()
-        self.storage_fp.close()
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+        storage_fp = open(f"data_{timestamp}.pickle", "wb")  # where we store the data later
+        # evaluate the data:
+        pickle.dump(self.dps, storage_fp)
+        storage_fp.close()
         self.cs.armed = 0
         self.device.reset()
         print("End...")

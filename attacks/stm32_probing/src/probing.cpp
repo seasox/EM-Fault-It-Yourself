@@ -4,7 +4,7 @@
 #define SCK_PIN   13
 #define MISO_PIN  12
 #define MOSI_PIN  11
-#define FAULTING_WINDOW_SEC 2
+//#define FAULTING_WINDOW_SEC 2
 
 auto clk_state = HIGH;
 
@@ -29,9 +29,9 @@ extern "C" {
 
 uint32_t _load_num_iters(){
     //return 160000000 / 4;
-    // the loop has 4 instructions, we want to waurt
+    // the loop has 4 instructions, we want to wait
     // TODO make depending on frequency
-    return 16000;
+    return 8000000;
 }
 
 void _transfer(const uint8_t *ptr, uint32_t num_bytes) {
@@ -67,10 +67,8 @@ void setup() {
 void loop() {
 while (1){
 
-    // we send a magic constant that indicates that the device is ready to be faulted
-    _transfer(fault_window_start_seq, 4);
-
-    // the expected values for the registers (successful r7 fault is unknown as it is used as the counter)
+    /* IMPORTANT Host must wait a few cycles until _transfer is reached! */
+    // Device sends register after reset as sanity check
     asm volatile (
     "mov r0, #0\n"
     "mov r1, #1\n"
@@ -80,13 +78,24 @@ while (1){
     "mov r5, #5\n"
     "mov r6, #6\n"
     "mov r7, #0\n"
+    "push {r0-r7} \n"
     );
 
-    // wait some time
+    asm volatile(
+    "mov r0, sp \n" // mov sp (location of the registers) to r0
+    "mov r1, #32 \n" // now, r0 = begin of registers, r1 = size
+    "bl _transfer\n"
+    );
+
+    // we send a magic constant that indicates that the device is ready to be faulted
+    _transfer(fault_window_start_seq, 4);
+
+    // wait some time. The fault will happen during this wait.
     asm volatile(
     "bl _load_num_iters\n"
     "mov r7, r0\n" // return value is in r0, we want to use r7 as cnt
-    "mov r0, #0\n" // we store the expected value in r0
+    "pop {r0-r6} \n"
+    "add sp, sp, #4\n" // throw away r7
     "_loop: \n"
     "cmp r7, #0\n"
     "beq end_loop\n"
@@ -96,9 +105,9 @@ while (1){
     "push {r0-r7} \n" // we push the faulted data on the stack
     );
 
-    // ATTENTION! You have to wait a few cycles until the DUT branches to _transfer and is ready to transfer its register
     _transfer(fault_window_end_seq, 4); // we send a magic constant that indicates that the fault window ended
 
+    /* IMPORTANT Host must wait a few cycles until _transfer is reached! */
     asm volatile(
     "mov r0, sp \n" // mov sp (location of the registers) to r0
     "mov r1, #32 \n" // now, r0 = begin of registers, r1 = size

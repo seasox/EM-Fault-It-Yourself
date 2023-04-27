@@ -44,7 +44,9 @@ class Register:
 class STATUS(Enum):
     EXPECTED_DATA_MISMATCH = 0
     RESET_UNSUCCESSFUL = 1
-    END_SEQUENCE_FOUND = 2
+    END_SEQUENCE_NOT_FOUND = 2
+    FAULT_WINDOW_TIMEOUT = 3
+    HARD_RESET_UNSUCCESSFUL = 4
 
     def __str__(self):
         return self.name
@@ -56,8 +58,8 @@ class STATUS(Enum):
 @dataclass
 class Response:
     status: set[STATUS]
-    raw: BitArray = field(repr = False)
-    reg_data: Dict[str, Register]
+    raw: BitArray | None = field(repr = False)
+    reg_data: Dict[str, Register] | None
 
 
 class OpenOCD:
@@ -172,8 +174,7 @@ class Comm:
                  reg_size: int | List[int],
                  fault_window_start_seq:BitArray,
                  fault_window_end_seq: BitArray,
-                 end_seq: BitArray,
-                 expected_data: List[int] = None,
+                 reg_data_expected: List[int],
                  init_open_ocd=False):
 
         # Config pins
@@ -192,19 +193,20 @@ class Comm:
         # init device specific config
         self.regs: List[str] = [f"r{i}" for i in range(regs)] if type(regs) is int else regs
         self.reg_size: List[int] = [reg_size] * len(self.regs) if type(reg_size) is int else reg_size
-        assert end_seq.len % 8 == 0, "End sequence length must be a multiple of 8"
         assert fault_window_start_seq.len % 8 == 0, "Fault window start sequence length must be a multiple of 8"
         assert fault_window_end_seq.len % 8 == 0, "Fault window end sequence length must be a multiple of 8"
-        self.end_seq = end_seq
+
+        self.reg_data_expected = reg_data_expected
         self.fault_window_start_seq = fault_window_start_seq
         self.fault_window_end_seq = fault_window_end_seq
-        self.expected_data = expected_data
-        self.end_seq_buffer_size = self.end_seq.len // 8 + sum(self.reg_size)  # in bytes
+
+        self.reg_data_buffer_size = sum(self.reg_size)  # in bytes
         self.fault_window_start_seq_buffer_size = self.fault_window_start_seq.len // 8 # in bytes
         self.fault_window_end_seq_buffer_size = self.fault_window_end_seq.len // 8 # in bytes
+
         # make sure parameters are allowed
         assert len(self.regs) == len(self.reg_size), "All registers must have a corresponding size entry!"
-        assert self.expected_data is None or len(self.expected_data) == len(self.reg_size), "The expected data must have the same number of bytes as the registers that are read"
+        assert self.reg_data_expected is None or len(self.reg_data_expected) == len(self.reg_size), "The data expected in the registers must have the same number of bytes as the registers that are read"
 
         # init open ocd
         self.open_ocd: Optional[OpenOCD] = None
@@ -214,6 +216,7 @@ class Comm:
         # Timing constants
         self.__low_time = .0001
         self.__high_time = .0001
+        self.__wait_seq_time = 5
         self.__reset_time = .5
 
         self.reset()
@@ -221,15 +224,6 @@ class Comm:
     def init_open_ocd(self, open_ocd: Optional[OpenOCD] = None) -> None:
         self.open_ocd = open_ocd or OpenOCD()
         self.open_ocd.connect()
-
-    def find_end_sequence(self, data: BitArray) -> int:
-        matches = list(re.finditer(self.end_seq.bin, data.bin))
-        if len(matches) == 1:
-            return matches[0].start()
-        if len(matches) > 1:
-            return matches[-1].start()
-        if len(matches) == 0:
-            raise IndexError
 
     def _high(self):
         GPIO.output(self.clk_pin, 1)
@@ -239,17 +233,16 @@ class Comm:
         GPIO.output(self.clk_pin, 0)
         time.sleep(self.__low_time)
 
-    def read(self, num_bytes: int) -> BitArray:
-        # The device stalls after moving the data in the registers
+    def read(self, num_words: int, bits_per_word=8) -> BitArray:
         assert GPIO.input(self.clk_pin)  # assumes a high output
-        num_bits = num_bytes * 8
-        buffer = ""
+        num_bits = num_words * bits_per_word
+        _buffer = ""
         for _ in range(num_bits):
             assert GPIO.input(self.clk_pin)  # assumes a high output
             self._low()
-            buffer += str(GPIO.input(self.miso_pin))
+            _buffer += str(GPIO.input(self.miso_pin))
             self._high()
-        return BitArray(bin=buffer)
+        return BitArray(bin=_buffer)
 
     def reset(self, scale:float = 1):
         GPIO.output(self.reset_pin, 0)
@@ -257,72 +250,59 @@ class Comm:
         GPIO.output(self.reset_pin, 1)
         time.sleep(self.__reset_time * scale)
 
-    def wait_faulting_window_start(self) -> float:
-        start = time.time()
-        buffer = self.read(self.fault_window_start_seq_buffer_size)
-        while buffer != self.fault_window_start_seq:
-            next_byte = self.read(1)
-            buffer = BitArray(buffer[8:]) + next_byte
-        return time.time() - start
 
-    def wait_faulting_window_end(self) -> float:
+    def wait_fault_window_start(self) -> float:
+        print("Waiting for start sequence...")
         start = time.time()
-        buffer = self.read(self.fault_window_end_seq_buffer_size)
-        while buffer != self.fault_window_end_seq:
-            next_byte = self.read(1)
-            buffer = BitArray(buffer[8:]) + next_byte
-        # wait a few cycles until device is ready to send the registers
-        time.sleep(.1)
-        return time.time() - start
+        _buffer = self.read(self.fault_window_start_seq_buffer_size)
+        while True:
+            if _buffer.uintle != 0:
+                print(_buffer)
+            assert _buffer.len == self.fault_window_start_seq.len
+            if time.time() - start > self.__wait_seq_time:
+                return -1
+            if _buffer == self.fault_window_start_seq:
+                return time.time() - start
+            next_bit = self.read(num_words=1, bits_per_word=1)
+            _buffer = BitArray(_buffer[1:]) + next_bit  # queues next bit keeps length
 
-    def read_regs(self, comp_expected=True) -> Response:
-        buffer = self.read(self.end_seq_buffer_size)
-        original_buffer = buffer.copy()
+    def wait_fault_window_end(self) -> float:
+        print("Waiting for end sequence...")
+        start = time.time()
+        _buffer = self.read(self.fault_window_end_seq_buffer_size)
+        while True:
+            assert _buffer.len == self.fault_window_end_seq.len
+            if time.time() - start > self.__wait_seq_time:
+                return -1
+            if _buffer == self.fault_window_end_seq:
+                return time.time() - start
+            next_bit = self.read(num_words=1, bits_per_word=1)
+            _buffer = BitArray(_buffer[1:]) + next_bit # queues next bit keeps length
+
+    @staticmethod
+    def hard_reset(bus_id: str, device_id: str) -> bool:
+        import subprocess
+        return subprocess.run(["/home/pi/usbreset", f"/dev/bus/usb/{bus_id}/{device_id}"]).returncode == 0
+    @staticmethod
+    def flash_firmware() -> bool:
+        import subprocess
+        ret_code = subprocess.run(["/home/pi/.platformio/penv/bin/pio", "run", "-t", "upload"], cwd="/home/pi/pycharm_mnt/EM-Fault-It-Yourself/attacks/stm32_probing/").returncode
+        return ret_code == 0
+
+    def read_regs(self) -> Response:
+        _buffer = self.read(self.reg_data_buffer_size)
+        _buffer_cp = _buffer.copy()
         status: set[STATUS] = set()
-        try:
-            idx = self.find_end_sequence(buffer) # try to find the end sequence in the buffer
-            # End sequence was found at the end
-            if idx == len(buffer) - len(self.end_seq):
-                status.add(STATUS.END_SEQUENCE_FOUND)
-        except IndexError:
-            pass # we don't add the flag
-
-        # Helper methods
-        def _parse_with_no_expected_data(corrupted: bool):
-            _data: Dict[str, Register] = {}
-            for name, width in zip(self.regs, self.reg_size):
-                bit_width = width * 8
-                value = buffer.bytes[:width]  # get the size bytes
-                del buffer[:bit_width]  # remove the bits from the buffer
-                _data[name] = Register(name, bit_width, BitArray(bytes=value), dirty=False, corrupted=corrupted)
-            return _data
-
         def _parse_with_expected_data():
             _data: Dict[str, Register] = {}
-
             for i, (name, width) in enumerate(zip(self.regs, self.reg_size)):
                 bit_width = width * 8
-                actual = BitArray(bytes=buffer.bytes[:width])
-                expected = self.expected_data[i]  # the value (int) we expect
-                del buffer[:bit_width]  # remove the bits from the buffer
+                actual = BitArray(bytes=_buffer.bytes[:width])
+                expected = self.reg_data_expected[i]  # the value (int) we expect
+                del _buffer[:bit_width]  # remove the bits from the buffer
                 missmatch = expected != actual.uintle
                 if missmatch: status.add(STATUS.EXPECTED_DATA_MISMATCH) # we can check for this flag later
                 _data[name] = Register(name, bit_width, actual, corrupted=missmatch)
             return _data
 
-        # Parse the status register
-        comp_expected = self.expected_data is not None and comp_expected
-
-        if comp_expected:
-            # we check each register against its expected value
-            return Response(status, original_buffer, _parse_with_expected_data())
-
-        if STATUS.END_SEQUENCE_FOUND not in status:
-            # we cannot know if register corrupted or something else broke, thus we assume corrupted
-            return Response(status, original_buffer, _parse_with_no_expected_data(corrupted=True))
-
-        if STATUS.END_SEQUENCE_FOUND in status:
-            # END_SEQUENCE_FOUND indicates a correct transfer of data, thus corrupted = False
-            return Response(status, original_buffer, _parse_with_no_expected_data(corrupted=False))
-
-        raise LookupError(f"Status combination {status} and comp_expected = {comp_expected} not handled...")
+        return Response(status, _buffer_cp, _parse_with_expected_data())
