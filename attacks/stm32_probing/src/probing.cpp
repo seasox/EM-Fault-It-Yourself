@@ -28,7 +28,6 @@ inline void wait_falling() {
 extern "C" {
 
 uint32_t _load_num_iters(){
-    //return 160000000 / 4;
     // the loop has 4 instructions, we want to wait
     // TODO make depending on frequency
     return 8000000;

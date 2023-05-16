@@ -112,8 +112,8 @@ class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(5, 63, 112),
-                         end_pos=(14, 73, 112),
+        super().__init__(start_pos=(95, 68, 110),
+                         end_pos=(105, 78, 110),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
@@ -167,7 +167,7 @@ class Probing(Attack):
         self.aw = aw
         self.cs = ChipSHOUTER("/dev/ttyUSB0")
         self.cs.voltage = 500
-        self.cs.pulse.repeat = 2
+        self.cs.pulse.repeat = 10
 
     def shout(self) -> None:
         self.device.wait_fault_window_start()
@@ -216,27 +216,11 @@ class Probing(Attack):
         return success
 
     def reset_target(self) -> None:
-        reset_cnt = 1
-        while True:  # Python way of do ... while
-            self.device.reset(reset_cnt)
-            time.sleep(self.dut_prep_time)
-            self.response_before_fault = self.device.read_regs()
-            reset_cnt += 1
-            if STATUS.EXPECTED_DATA_MISMATCH not in self.response_before_fault.status:
-                break
-            print("Resetting again... Buffer was:")
-            print(self.response_before_fault.reg_data)
-            if reset_cnt > self.max_reset_tries:
-                self.response_before_fault.status.add(STATUS.RESET_UNSUCCESSFUL)
-                print("Hard resetting...")
-                succ = self.device.hard_reset(self.bus_id, self.device_id)
-                if not succ:
-                    self.response_before_fault.status.add(STATUS.HARD_RESET_UNSUCCESSFUL)
-                print("Flashing...")
-                self.device.flash_firmware()
-                self.device.reset()
-                time.sleep(self.dut_prep_time)
-                return
+        self.device.reset()
+        self.response_before_fault = self.device.read_regs()
+        if STATUS.EXPECTED_DATA_MISMATCH in self.response_before_fault.status:
+            print("Reset unsuccessful")
+
 
     def critical_check(self) -> bool:
         return True
