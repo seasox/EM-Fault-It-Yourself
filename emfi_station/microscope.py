@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import time
 
 import cv2
 import logging
@@ -61,11 +62,14 @@ class Microscope:
         try:
             video_dev = get_device_fd(self.vendor_id, self.product_id, 'video4linux', self.idx)
             self.cam = cv2.VideoCapture(video_dev)
+            self.cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+            if not self.cam.isOpened():
+                raise FileNotFoundError(f'video object not opened: {video_dev}')
             if self.resolution is not None:
                 self.__set_resolution(*self.resolution)
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             self.log.critical(
-                'Camera is not available: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
+                'Camera is not available: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx), e)
 
     def __set_resolution(self, width: int, height: int) -> None:
         """
