@@ -217,7 +217,9 @@ class Comm:
         self.__low_time = .0001
         self.__high_time = .0001
         self.__wait_seq_time = 5
-        self.__reset_time = .5
+
+        self.__boot_up_time = 1.5
+        self.__relay_time = .8
 
         self.reset()
 
@@ -244,11 +246,16 @@ class Comm:
             self._high()
         return BitArray(bin=_buffer)
 
-    def reset(self, scale:float = 1):
-        GPIO.output(self.reset_pin, 0)
-        time.sleep(self.__low_time * scale)
+    def reset(self):
+        # turn off device
         GPIO.output(self.reset_pin, 1)
-        time.sleep(self.__reset_time * scale)
+        # wait until relay changes state
+        time.sleep(self.__relay_time)
+        GPIO.output(self.reset_pin, 0)
+        # wait until relay changes state and device reboots
+        time.sleep(self.__relay_time)
+        time.sleep(self.__boot_up_time)
+
 
 
     def wait_fault_window_start(self) -> float:
@@ -256,8 +263,6 @@ class Comm:
         start = time.time()
         _buffer = self.read(self.fault_window_start_seq_buffer_size)
         while True:
-            if _buffer.uintle != 0:
-                print(_buffer)
             assert _buffer.len == self.fault_window_start_seq.len
             if time.time() - start > self.__wait_seq_time:
                 return -1
