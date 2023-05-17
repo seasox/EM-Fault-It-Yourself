@@ -51,7 +51,7 @@ class Microscope:
         self.product_id = product_id
         self.vendor_id = vendor_id
         self.idx = idx
-        self.resolution = resolution
+        self.resolution = resolution or (640, 480)
         self.__init_cam()
 
     def __init_cam(self) -> None:
@@ -116,8 +116,7 @@ class Microscope:
                 if len(self.frames) == 5:
                     self.frames = self.frames[1:]
                 self.frames.append(image)
-            # else:
-            #    self.log.critical('Failed to read image from camera: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx))
+            time.sleep(.5)  # sleep for a little while to not pester the camera too much
 
     def get_frame(self) -> bytes:
         """
