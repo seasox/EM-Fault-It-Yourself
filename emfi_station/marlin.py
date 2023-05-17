@@ -282,13 +282,21 @@ class Marlin:
         """
         if x == y == z and not x:
             return
+        # always home Z axis first to avoid colliding with DUT
+        if z:
+            cmd = 'G28 Z'
+            if not force_homing:
+                cmd += ' O'
+            self.ser.clear()
+            self.ser.cmd(cmd)
+            self.log.info('Homing axles: {:s}'.format(cmd.split('G28 ')[1]))
+            self.__wait_cmd_completed()
+
         cmd = 'G28'
         if x:
             cmd += ' X'
         if y:
             cmd += ' Y'
-        if z:
-            cmd += ' Z'
         if not force_homing:
             cmd += ' O'
         self.ser.clear()
