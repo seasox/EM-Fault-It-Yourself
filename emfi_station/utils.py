@@ -35,8 +35,8 @@ def get_device_fd(vendor: str, product: str, subsystem: str, idx=0) -> str:
     devices = []
     for device in context.list_devices(subsystem=subsystem):
         try:
-            if device.properties['ID_VENDOR_ID'] == vendor and \
-               device.properties['ID_MODEL_ID'] == product:
+            if device.properties['ID_USB_VENDOR_ID'] == vendor and \
+               device.properties['ID_USB_MODEL_ID'] == product:
                    devices += [device.properties['DEVNAME']]
         except KeyError:
             pass
