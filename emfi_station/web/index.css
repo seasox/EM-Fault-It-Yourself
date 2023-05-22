@@ -26,10 +26,3 @@ td {
 th {
     padding: 10px;
 }
-
-@media (prefers-color-scheme: dark) {
-    body {
-        background: #333;
-	color: white;
-    }
-}
