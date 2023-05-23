@@ -9,16 +9,14 @@
 
 asm(
     ".section .data\n"
-    "num_iters: .word 8000000\n"
-    "register_value: .word 0xaaaaaaaa\n"
+    "num_iters:                 .word 8000000\n" // TODO change according to clk rate
+    "register_value:            .word 0xaaaaaaaa\n"
+    "end_seq:                   .byte 0x42, 0x42, 0x42, 0x42\n"
+    "fault_window_start_seq:    .byte 42, 42, 42, 42\n"
+    "fault_window_end_seq:      .byte 0x13, 0x37, 0x13, 0x37\n"
 );
 
-
 auto clk_state = HIGH;
-
-const uint8_t end_seq[4] = {0x42, 0x42, 0x42, 0x42};
-const uint8_t fault_window_start_seq[4] = {42, 42, 42, 42};
-const uint8_t fault_window_end_seq[4] = {0x13, 0x37, 0x13, 0x37};
 
 inline void wait_falling() {
     while (true) {
@@ -31,30 +29,28 @@ inline void wait_falling() {
     }
 }
 
-
-
 extern "C" {
-void _transfer(const uint8_t *ptr, uint32_t num_bytes) {
-    for (uint32_t i = 0; i < num_bytes; i++) {
-        const uint8_t value = ptr[i];
-        wait_falling();
-        digitalWrite(MISO_PIN, (value >> 7) & 0x01);
-        wait_falling();
-        digitalWrite(MISO_PIN, (value >> 6) & 0x01);
-        wait_falling();
-        digitalWrite(MISO_PIN, (value >> 5) & 0x01);
-        wait_falling();
-        digitalWrite(MISO_PIN, (value >> 4) & 0x01);
-        wait_falling();
-        digitalWrite(MISO_PIN, (value >> 3) & 0x01);
-        wait_falling();
-        digitalWrite(MISO_PIN, (value >> 2) & 0x01);
-        wait_falling();
-        digitalWrite(MISO_PIN, (value >> 1) & 0x01);
-        wait_falling();
-        digitalWrite(MISO_PIN, value & 0x01);
+    void _transfer(const uint8_t *ptr, uint32_t num_bytes) {
+        for (uint32_t i = 0; i < num_bytes; i++) {
+            const uint8_t value = ptr[i];
+            wait_falling();
+            digitalWrite(MISO_PIN, (value >> 7) & 0x01);
+            wait_falling();
+            digitalWrite(MISO_PIN, (value >> 6) & 0x01);
+            wait_falling();
+            digitalWrite(MISO_PIN, (value >> 5) & 0x01);
+            wait_falling();
+            digitalWrite(MISO_PIN, (value >> 4) & 0x01);
+            wait_falling();
+            digitalWrite(MISO_PIN, (value >> 3) & 0x01);
+            wait_falling();
+            digitalWrite(MISO_PIN, (value >> 2) & 0x01);
+            wait_falling();
+            digitalWrite(MISO_PIN, (value >> 1) & 0x01);
+            wait_falling();
+            digitalWrite(MISO_PIN, value & 0x01);
+        }
     }
-}
 }
 
 void setup() {
@@ -65,58 +61,68 @@ void setup() {
 }
 
 void loop() {
-while (1){
 
-    /* IMPORTANT Host must wait a few cycles until _transfer is reached! */
-    // Device sends register after reset as sanity check
+while (1){
     asm volatile (
-    "ldr r0, =register_value\n"
-    "bl _load_register_default\n" // r0 0xaaaa..
-    //"mov r0, #0\n"
-    "mov r1, r0\n"
-    "mov r2, r0\n"
-    "mov r3, r0\n"
-    "mov r4, #4\n" // TODO r4 needs to be 4 as it is used to store a constant
-    "mov r5, r0\n"
-    "mov r6, r0\n"
+    /* IMPORTANT Host must wait a few cycles until _transfer is reached! */
+
+    // Store values in the register
+    "ldr r7, =register_value\n"
+    "ldr r0, [r7]\n"
+    "ldr r1, [r7]\n"
+    "ldr r2, [r7]\n"
+    "ldr r3, [r7]\n"
+    "ldr r4, [r7]\n"
+    "ldr r5, [r7]\n"
+    "ldr r6, [r7]\n"
     "mov r7, #0\n"
     "push {r0-r7} \n"
-    );
 
-    asm volatile(
+    // send them to the host
     "mov r0, sp \n" // mov sp (location of the registers) to r0
-    "mov r1, #32 \n" // now, r0 = begin of registers, r1 = size
+    "mov r1, #32 \n" // r0 = begin of registers, r1 = size
     "bl _transfer\n"
-    );
 
-    // we send a magic constant that indicates that the device is ready to be faulted
-    _transfer(fault_window_start_seq, 4);
+    // Call transfer with fault_window_start_seq
+    "ldr r0, =fault_window_start_seq\n"
+    "mov r1, #4\n"
+    "bl _transfer\n"
 
-    // wait some time. The fault will happen during this wait.
-    asm volatile(
-    "bl _load_num_iters\n"
-    "mov r7, r0\n" // return value is in r0, we want to use r7 as cnt
+    // Load num iters to r7
+    "ldr r7, =num_iters\n"
+    "ldr r7, [r7]\n"
     "pop {r0-r6} \n"
     "add sp, sp, #4\n" // throw away r7
+
+    // Faulting window
     "_loop: \n"
     "cmp r7, #0\n"
     "beq end_loop\n"
     "sub r7, r7, #1\n" // r7 <- r7 - 1
     "b _loop\n"
     "end_loop:\n"
-    "push {r0-r7} \n" // we push the faulted data on the stack
-    );
 
-    _transfer(fault_window_end_seq, 4); // we send a magic constant that indicates that the fault window ended
+    // we push the faulted data on the stack
+    "push {r0-r7} \n"
+
+    // Call transfer with fault_window_end_seq
+    "ldr r0, =fault_window_end_seq\n"
+    "mov r1, #4\n"
+    "bl _transfer\n"
 
     /* IMPORTANT Host must wait a few cycles until _transfer is reached! */
-    asm volatile(
-    "mov r0, sp \n" // mov sp (location of the registers) to r0
-    "mov r1, #32 \n" // now, r0 = begin of registers, r1 = size
-    "bl _transfer\n"
-    "pop {r0-r7}\n"
-    );
 
-    _transfer(end_seq, 4);
+    "mov r0, sp \n" // mov sp (location of the registers) to r0
+    "mov r1, #32 \n" // r0 = begin of registers, r1 = size
+    "bl _transfer\n"
+
+    // pop the registers
+    "pop {r0-r7}\n"
+
+    // Call transfer with end_seq
+    "ldr r0, =end_seq\n"
+    "mov r1, #4\n"
+    "bl _transfer\n"
+    );
     }
 }

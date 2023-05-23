@@ -1,5 +1,4 @@
 import time
-import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 import pickle
@@ -141,7 +140,7 @@ class Probing(Attack):
                               0xaaaaaaaa,
                               0xaaaaaaaa,
                               0xaaaaaaaa,
-                              4,
+                              0xaaaaaaaa,
                               0xaaaaaaaa,
                               0xaaaaaaaa,
                               0]  # each register sends a number but 7 (it's used as round counter)
@@ -180,6 +179,7 @@ class Probing(Attack):
 
     def shout(self) -> None:
         self.device.wait_fault_window_start()
+        return
         while True:
             try:
                 if not self.cs.armed:
