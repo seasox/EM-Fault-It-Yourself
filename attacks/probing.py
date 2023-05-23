@@ -206,7 +206,6 @@ class Probing(Attack):
             if _data != self.end_seq:
                 self.response_after_fault.status.add(STATUS.END_SEQUENCE_NOT_FOUND)
 
-        # todo repeat
         x, y, z = np.ceil((np.array(self.aw.position) - self.start_pos) / self.step_size).astype(dtype=int)
         d = Datapoint(self.response_before_fault, self.response_after_fault, (x, y, z))
         performance = d.evaluate(self.metric)
