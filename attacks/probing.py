@@ -113,10 +113,10 @@ class Probing(Attack):
     def __init__(self):
         super().__init__(start_pos=(95, 68, 86),
                          end_pos=(105, 78, 86),
-                         step_size=1,
+                         step_size=0.1,
                          max_target_temp=40,
                          cooling=1,
-                         repetitions=3)
+                         repetitions=1)
         self.metric = Metric.AnyFlipAnywhere
         self.response_before_fault = None
         self.response_after_fault = None
@@ -155,7 +155,7 @@ class Probing(Attack):
                            reg_data_expected=self.expected_data)
 
         # Other parameters, watch out that dz is 0 if only one layer is attacked!
-        self.dx, self.dy, self.dz = ((np.array(self.end_pos) - self.start_pos) // self.step_size)
+        self.dx, self.dy, self.dz = ((np.array(self.end_pos) - self.start_pos) / self.step_size)
         self.max_reset_tries = 3
 
         # The datapoints of a given x,y,z location
@@ -167,7 +167,10 @@ class Probing(Attack):
 
     def __init_dp_matrix(self):
         # this order is required to access the matrix using [x][y][z]
-        return [[[list() for _ in range(self.dz + 1)] for _ in range(self.dy + 1)] for _ in range(self.dx + 1)]
+        import math
+        return [[[list() for _ in range(math.ceil(self.dz + 1))] \
+                 for _ in range(math.ceil(self.dy + 1))] \
+                for _ in range(math.ceil(self.dx + 1))]
 
     def init(self, aw) -> None:
         self.aw = aw
@@ -203,7 +206,8 @@ class Probing(Attack):
             if _data != self.end_seq:
                 self.response_after_fault.status.add(STATUS.END_SEQUENCE_NOT_FOUND)
 
-        x, y, z = (np.array(self.aw.position) - self.start_pos) // self.step_size
+        # todo repeat
+        x, y, z = np.ceil((np.array(self.aw.position) - self.start_pos) / self.step_size).astype(dtype=int)
         d = Datapoint(self.response_before_fault, self.response_after_fault, (x, y, z))
         performance = d.evaluate(self.metric)
         self.dps[x][y][z].append(d)

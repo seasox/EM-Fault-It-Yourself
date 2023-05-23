@@ -25,7 +25,7 @@ class Attack:
     """
     Base class for the attack implementations.
     """
-    def __init__(self, start_pos: tuple[float, float, float], end_pos: tuple[float, float, float], step_size: int,
+    def __init__(self, start_pos: tuple[float, float, float], end_pos: tuple[float, float, float], step_size: float,
             max_target_temp: float = 40, cooling: float = 0, repetitions: int = 0):
         """
         Initializes attack settings and attack hardware.
