@@ -1,13 +1,17 @@
 import pickle
+import sys
 from pprint import pprint
 
 from attacks.probing import Datapoint, Metric
 import matplotlib.pyplot as plt
 
 def main():
-    with open("data.pickle", "rb") as fp:
+    print(sys.argv[0])
+    with open("/home/pi/pycharm_mnt/EM-Fault-It-Yourself/data_2023-05-22-17:37:10.pickle", "rb") as fp:
         # TODO this might do stupid stuff use with caution
         dps = pickle.load(fp)
+
+
         dx = len(dps)
         dy = len(dps[0])
         dz = len(dps[0][0])

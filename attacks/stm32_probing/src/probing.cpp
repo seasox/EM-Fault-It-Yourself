@@ -6,6 +6,14 @@
 #define MOSI_PIN  11
 //#define FAULTING_WINDOW_SEC 2
 
+
+asm(
+    ".section .data\n"
+    "num_iters: .word 8000000\n"
+    "register_value: .word 0xaaaaaaaa\n"
+);
+
+
 auto clk_state = HIGH;
 
 const uint8_t end_seq[4] = {0x42, 0x42, 0x42, 0x42};
@@ -26,13 +34,6 @@ inline void wait_falling() {
 
 
 extern "C" {
-
-uint32_t _load_num_iters(){
-    // the loop has 4 instructions, we want to wait
-    // TODO make depending on frequency
-    return 8000000;
-}
-
 void _transfer(const uint8_t *ptr, uint32_t num_bytes) {
     for (uint32_t i = 0; i < num_bytes; i++) {
         const uint8_t value = ptr[i];
@@ -69,13 +70,15 @@ while (1){
     /* IMPORTANT Host must wait a few cycles until _transfer is reached! */
     // Device sends register after reset as sanity check
     asm volatile (
-    "mov r0, #0\n"
-    "mov r1, #1\n"
-    "mov r2, #2\n"
-    "mov r3, #3\n"
-    "mov r4, #4\n"
-    "mov r5, #5\n"
-    "mov r6, #6\n"
+    "ldr r0, =register_value\n"
+    "bl _load_register_default\n" // r0 0xaaaa..
+    //"mov r0, #0\n"
+    "mov r1, r0\n"
+    "mov r2, r0\n"
+    "mov r3, r0\n"
+    "mov r4, #4\n" // TODO r4 needs to be 4 as it is used to store a constant
+    "mov r5, r0\n"
+    "mov r6, r0\n"
     "mov r7, #0\n"
     "push {r0-r7} \n"
     );

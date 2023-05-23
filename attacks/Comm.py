@@ -45,8 +45,8 @@ class STATUS(Enum):
     EXPECTED_DATA_MISMATCH = 0
     RESET_UNSUCCESSFUL = 1
     END_SEQUENCE_NOT_FOUND = 2
+    # if we didn't receive the fault window end sequence
     FAULT_WINDOW_TIMEOUT = 3
-    HARD_RESET_UNSUCCESSFUL = 4
 
     def __str__(self):
         return self.name

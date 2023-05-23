@@ -112,8 +112,8 @@ class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(95, 68, 110),
-                         end_pos=(105, 78, 110),
+        super().__init__(start_pos=(95, 68, 86),
+                         end_pos=(105, 78, 86),
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
@@ -137,7 +137,16 @@ class Probing(Attack):
         self.end_seq = BitArray(bytes=b"\x42\x42\x42\x42")
         self.fault_window_start_seq = BitArray(bytes=b"\x2a\x2a\x2a\x2a")
         self.fault_window_end_seq = BitArray(bytes=b"\x13\x37\x13\x37")
-        self.expected_data = [0,1,2,3,4,5,6,0]  # each register sends its number but 7 (it's used as round counter)
+        self.expected_data = [0xaaaaaaaa,
+                              0xaaaaaaaa,
+                              0xaaaaaaaa,
+                              0xaaaaaaaa,
+                              4,
+                              0xaaaaaaaa,
+                              0xaaaaaaaa,
+                              0]  # each register sends a number but 7 (it's used as round counter)
+
+
 
         self.device = Comm(miso_pin=self.miso_pin,
                            clk_pin=self.clk_pin,
@@ -219,7 +228,7 @@ class Probing(Attack):
         self.device.reset()
         self.response_before_fault = self.device.read_regs()
         if STATUS.EXPECTED_DATA_MISMATCH in self.response_before_fault.status:
-            print("Reset unsuccessful")
+            print("Reset unsuccessful...")
 
 
     def critical_check(self) -> bool:
