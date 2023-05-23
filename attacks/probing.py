@@ -136,6 +136,7 @@ class Probing(Attack):
         self.end_seq = BitArray(bytes=b"\x42\x42\x42\x42")
         self.fault_window_start_seq = BitArray(bytes=b"\x2a\x2a\x2a\x2a")
         self.fault_window_end_seq = BitArray(bytes=b"\x13\x37\x13\x37")
+        # each register sends a number that distributes 0/1 evenly. r7 is used as a round counter
         self.expected_data = [0xaaaaaaaa,
                               0xaaaaaaaa,
                               0xaaaaaaaa,
@@ -143,10 +144,7 @@ class Probing(Attack):
                               0xaaaaaaaa,
                               0xaaaaaaaa,
                               0xaaaaaaaa,
-                              0]  # each register sends a number but 7 (it's used as round counter)
-
-
-
+                              0]
         self.device = Comm(miso_pin=self.miso_pin,
                            clk_pin=self.clk_pin,
                            reset_pin=self.reset_pin,
@@ -179,7 +177,6 @@ class Probing(Attack):
 
     def shout(self) -> None:
         self.device.wait_fault_window_start()
-        return
         while True:
             try:
                 if not self.cs.armed:
@@ -193,6 +190,7 @@ class Probing(Attack):
 
     def was_successful(self) -> bool:
         time_taken = self.device.wait_fault_window_end()
+        print(f"Waiting for end sequence took {time_taken} seconds")
         if time_taken < 0: # a timeout
             self.response_after_fault = Response({STATUS.FAULT_WINDOW_TIMEOUT}, None, None)
         else: # we received the end_sequence

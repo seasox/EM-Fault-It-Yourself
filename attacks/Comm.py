@@ -216,7 +216,7 @@ class Comm:
         # Timing constants
         self.__low_time = .0001
         self.__high_time = .0001
-        self.__wait_seq_time = 5
+        self.__wait_seq_time = 8
 
         self.__boot_up_time = 1.5
         self.__relay_time = .8
@@ -259,7 +259,7 @@ class Comm:
 
 
     def wait_fault_window_start(self) -> float:
-        print("Waiting for start sequence...")
+        #print("Waiting for start sequence...")
         start = time.time()
         _buffer = self.read(self.fault_window_start_seq_buffer_size)
         while True:
@@ -272,28 +272,20 @@ class Comm:
             _buffer = BitArray(_buffer[1:]) + next_bit  # queues next bit keeps length
 
     def wait_fault_window_end(self) -> float:
-        print("Waiting for end sequence...")
+        #print("Waiting for end sequence...")
         start = time.time()
         _buffer = self.read(self.fault_window_end_seq_buffer_size)
+        bit_cnt = _buffer.len
         while True:
             assert _buffer.len == self.fault_window_end_seq.len
             if time.time() - start > self.__wait_seq_time:
                 return -1
             if _buffer == self.fault_window_end_seq:
+                print(bit_cnt)
                 return time.time() - start
             next_bit = self.read(num_words=1, bits_per_word=1)
             _buffer = BitArray(_buffer[1:]) + next_bit # queues next bit keeps length
-
-    @staticmethod
-    def hard_reset(bus_id: str, device_id: str) -> bool:
-        import subprocess
-        return subprocess.run(["/home/pi/usbreset", f"/dev/bus/usb/{bus_id}/{device_id}"]).returncode == 0
-    @staticmethod
-    def flash_firmware() -> bool:
-        import subprocess
-        ret_code = subprocess.run(["/home/pi/.platformio/penv/bin/pio", "run", "-t", "upload"], cwd="/home/pi/pycharm_mnt/EM-Fault-It-Yourself/attacks/stm32_probing/").returncode
-        return ret_code == 0
-
+            bit_cnt += 1
     def read_regs(self) -> Response:
         _buffer = self.read(self.reg_data_buffer_size)
         _buffer_cp = _buffer.copy()
