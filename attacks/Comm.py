@@ -1,12 +1,9 @@
 import time
 from enum import Enum
 from typing import Optional, List, Dict
-import socket
 from dataclasses import dataclass, field
 from typing_extensions import Literal
-import RPi.GPIO as GPIO
 from bitstring import BitArray
-import re
 
 
 @dataclass
@@ -67,6 +64,7 @@ class OpenOCD:
     EOF = bytes('\x1a', encoding=encoding)
 
     def __init__(self, host='localhost', port=6666, _socket=None):
+        import socket
         self._host = host
         self._port = port
         self._buffer_size = 4096
@@ -85,6 +83,7 @@ class OpenOCD:
 
     def execute(self, command: str) -> str:
         """Executes a command"""
+        import socket
         data = command.encode(OpenOCD.encoding) + OpenOCD.EOF
         self._socket.sendall(data)
         try:
@@ -176,6 +175,7 @@ class Comm:
                  fault_window_end_seq: BitArray,
                  reg_data_expected: List[int],
                  init_open_ocd=False):
+        import RPi.GPIO as GPIO
 
         # Config pins
         self.miso_pin = miso_pin
@@ -228,14 +228,17 @@ class Comm:
         self.open_ocd.connect()
 
     def _high(self):
+        import RPi.GPIO as GPIO
         GPIO.output(self.clk_pin, 1)
         time.sleep(self.__high_time)
 
     def _low(self):
+        import RPi.GPIO as GPIO
         GPIO.output(self.clk_pin, 0)
         time.sleep(self.__low_time)
 
     def read(self, num_words: int, bits_per_word=8) -> BitArray:
+        import RPi.GPIO as GPIO
         assert GPIO.input(self.clk_pin)  # assumes a high output
         num_bits = num_words * bits_per_word
         _buffer = ""
@@ -247,6 +250,7 @@ class Comm:
         return BitArray(bin=_buffer)
 
     def reset(self):
+        import RPi.GPIO as GPIO
         # turn off device
         GPIO.output(self.reset_pin, 1)
         # wait until relay changes state
