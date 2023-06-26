@@ -106,14 +106,21 @@ class Datapoint:
             case _:
                 raise LookupError(f"Metric {str(m)} not covered")
 
+stm32l0_start = (95, 68, 86)
+stm32l0_end = (105, 78, 86)
+
+stm32f4_start = (95, 88, 84)
+stm32f4_end = (108, 100, 84)
+
+stm32f4_r0_2_7_fault = (107, 92, 84)
 
 class Probing(Attack):
     cs: ChipSHOUTER
 
     def __init__(self):
-        super().__init__(start_pos=(95, 68, 86),
-                         end_pos=(105, 78, 86),
-                         step_size=0.1,
+        super().__init__(start_pos=stm32f4_start,
+                         end_pos=stm32f4_end,
+                         step_size=1,
                          max_target_temp=40,
                          cooling=1,
                          repetitions=1)
