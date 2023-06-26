@@ -12,7 +12,7 @@ from emfi_station import Attack
 from typing import Tuple, Dict, List
 
 
-class BitFlip(Enum):
+class BitFlip(int, Enum):
     ZERO_TO_ZERO = 0
     ONE_TO_ONE = 1
     ZERO_TO_ONE = 2
@@ -25,7 +25,7 @@ class BitFlip(Enum):
         return self.name
 
 
-class Metric(Enum):
+class Metric(int, Enum):
     AnyFlipAnywhere = 1
 
     def __str__(self):

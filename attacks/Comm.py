@@ -38,7 +38,7 @@ class Register:
             self.data_float = None if self.data is None else self.data.floatbe
 
 
-class STATUS(Enum):
+class STATUS(int, Enum):
     EXPECTED_DATA_MISMATCH = 0
     RESET_UNSUCCESSFUL = 1
     END_SEQUENCE_NOT_FOUND = 2
@@ -285,7 +285,7 @@ class Comm:
             if time.time() - start > self.__wait_seq_time:
                 return -1
             if _buffer == self.fault_window_end_seq:
-                print(bit_cnt)
+                #print(bit_cnt) # debugging
                 return time.time() - start
             next_bit = self.read(num_words=1, bits_per_word=1)
             _buffer = BitArray(_buffer[1:]) + next_bit # queues next bit keeps length
