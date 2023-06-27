@@ -1,15 +1,23 @@
 #include <Arduino.h>
 #include <stdint-gcc.h>
 
-#define SCK_PIN   13
-#define MISO_PIN  12
-#define MOSI_PIN  11
+#ifdef STM32L0
+# define SCK_PIN   13
+# define MISO_PIN  12
+# define MOSI_PIN  11
 //#define FAULTING_WINDOW_SEC 2
+#endif
+
+#ifdef STM32F4
+# define SCK_PIN PB3
+# define MISO_PIN PB4
+# define MOSI_PIN PB5
+#endif
 
 
 asm(
     ".section .data\n"
-    "num_iters:                 .word 0x280000\n" // TODO change according to clk rate
+    "num_iters:                 .word 0xC80000\n" // TODO change according to clk rate
     "register_value:            .word 0xaaaaaaaa\n"
     "end_seq:                   .byte 0x42, 0x42, 0x42, 0x42\n"
     "fault_window_start_seq:    .byte 42, 42, 42, 42\n"
