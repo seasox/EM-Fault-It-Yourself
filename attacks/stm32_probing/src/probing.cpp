@@ -5,6 +5,7 @@
 # define SCK_PIN   13
 # define MISO_PIN  12
 # define MOSI_PIN  11
+# define NUM_ITERS "0x280000"
 //#define FAULTING_WINDOW_SEC 2
 #endif
 
@@ -12,12 +13,13 @@
 # define SCK_PIN PB3
 # define MISO_PIN PB4
 # define MOSI_PIN PB5
+# define NUM_ITERS "0xC80000"
 #endif
 
 
 asm(
     ".section .data\n"
-    "num_iters:                 .word 0xC80000\n" // TODO change according to clk rate
+    "num_iters:                 .word " NUM_ITERS "\n" // TODO change according to clk rate
     "register_value:            .word 0xaaaaaaaa\n"
     "end_seq:                   .byte 0x42, 0x42, 0x42, 0x42\n"
     "fault_window_start_seq:    .byte 42, 42, 42, 42\n"
