@@ -1,19 +1,19 @@
 #include <Arduino.h>
 #include <stdint-gcc.h>
 
+// These are defined when compiling with pio
 #ifdef STM32L0
-# define SCK_PIN   13
-# define MISO_PIN  12
-# define MOSI_PIN  11
-# define NUM_ITERS "0x280000"
-//#define FAULTING_WINDOW_SEC 2
+#define SCK_PIN   13
+#define MISO_PIN  12
+#define MOSI_PIN  11
+#define NUM_ITERS "0x280000"
 #endif
 
 #ifdef STM32F4
-# define SCK_PIN PB3
-# define MISO_PIN PB4
-# define MOSI_PIN PB5
-# define NUM_ITERS "0xC80000"
+#define SCK_PIN PB3
+#define MISO_PIN PB4
+#define MOSI_PIN PB5
+#define NUM_ITERS "0xC80000"
 #endif
 
 

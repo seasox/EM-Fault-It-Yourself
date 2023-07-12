@@ -1,17 +1,14 @@
 import pickle
 import sys
-from pprint import pprint
 
-from attacks.probing import Datapoint, Metric
+from Comm import STATUS
+#from probing import evaluate, Datapoint, Metric
 import matplotlib.pyplot as plt
 
 def main():
-    print(sys.argv[0])
-    with open("/home/pi/pycharm_mnt/EM-Fault-It-Yourself/data_2023-05-22-17:37:10.pickle", "rb") as fp:
+    with open("/home/pi/pycharm_mnt/EM-Fault-It-Yourself/pickles/data_2023-06-28-14:12:31.pickle", "rb") as fp:
         # TODO this might do stupid stuff use with caution
         dps = pickle.load(fp)
-
-
         dx = len(dps)
         dy = len(dps[0])
         dz = len(dps[0][0])
@@ -20,8 +17,9 @@ def main():
             perf = [[0 for _ in range(dy)] for _ in range(dx)]
             for x in range(dx):
                 for y in range(dy):
-                    values = [d.evaluate(Metric.AnyFlipAnywhere) for d in dps[x][y][z]]
-                    perf[x][y] = -1 if -1 in values else sum(values) / len(values)
+                    # the performances of the datapoints created at the location
+                    values = [evaluate(d, Metric.AnyFlipAnywhere) for d in dps[x][y][z]]
+                    perf[x][y] = max(values)
             perf_xy_planes.append(perf)
         visualize(perf_xy_planes[0])
 

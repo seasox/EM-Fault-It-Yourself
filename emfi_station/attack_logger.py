@@ -13,23 +13,25 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
+import os
 from datetime import datetime
 from typing import Optional
+from pathlib import Path
 
 
 class AttackLogger:
     """
     Handles attack logging.
     """
-    def __init__(self, log_dir: Optional[str]) -> None:
+    def __init__(self, log_dir: str) -> None:
         """
         Initializes variables.
         :param log_dir: Directory to store log files.
         """
         self.attack_name = None
         self.file = None
-        self.dir = log_dir
+        self.dir = Path(log_dir)
+        self.path = None
 
     def log(self, message: str) -> None:
         """
@@ -56,13 +58,13 @@ class AttackLogger:
         """
         if self.file is not None:
             self.file.close()
+        if not self.dir.exists():
+            os.makedirs(self.dir)
+
         now = datetime.now()
         filename = '{}_{}.log'.format(now.strftime("%Y-%m-%dT%H:%M:%S"), self.attack_name)
-        if self.dir is not None:
-            fname = self.dir + '/' + filename
-            self.file = open(fname, 'w')
-            if not self.file:
-                raise Exception(f'file open failed: {fname}')
+        self.path = self.dir.joinpath(Path(filename))
+        self.file = open(self.path, "w")
 
     def close(self) -> None:
         """
