@@ -94,7 +94,7 @@ class AttackWorker:
                 for j in range(self.attack.repetitions):
                     if not self.running:
                         break
-                    self.progress = (i + j) / (len(positions) * self.attack.repetitions)
+                    self.progress = (i * self.attack.repetitions + j) / (len(positions) * self.attack.repetitions)
                     self.attack.reset_target()
                     self.attack.shout()
                     if self.attack.was_successful():
