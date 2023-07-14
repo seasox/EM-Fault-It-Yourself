@@ -101,12 +101,20 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
                 return -1
             return sum([dp.get_01_flips(reg_name) + dp.get_10_flips(reg_name) for reg_name in dp.reg_names])
 
+stm32f4_x_delta = 12
+stm32f4_y_delta = 12
+stm32f4_z_delta = 0
 
-stm32f4_start = (97, 88, 85)
-stm32f4_end = (108, 100, 85)
+stm32f4_start = (97, 60, 86)
+stm32f4_end = (109, 72, 86)
 
 stm32f4_r0_2_7_fault = (107, 92, 84)
 stm32f4_all_fault = (99, 99, 86)
+
+stm32f4_long_term_start = (97, 60, 86)
+stm32f4_long_term_end = (stm32f4_long_term_start[0] + stm32f4_x_delta,
+                         stm32f4_long_term_start[1] + stm32f4_y_delta,
+                         stm32f4_long_term_start[2] + stm32f4_z_delta)
 
 class Probing(Attack):
     cs: ChipSHOUTER
@@ -114,12 +122,12 @@ class Probing(Attack):
     response_after_fault: Response
 
     def __init__(self):
-        super().__init__(start_pos=stm32f4_start,
-                         end_pos=stm32f4_end,
+        super().__init__(start_pos=stm32f4_long_term_start,
+                         end_pos=stm32f4_long_term_end,
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
-                         repetitions=3)
+                         repetitions=300)
         self.metric = Metric.AnyFlipAnywhere
         self.aw = None
 
