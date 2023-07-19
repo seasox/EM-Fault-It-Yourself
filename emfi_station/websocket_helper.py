@@ -17,6 +17,7 @@
 import base64
 import threading
 import logging
+from datetime import datetime
 
 from .config import Config
 from .marlin import Marlin
@@ -213,10 +214,24 @@ class WebSocketHelper:
         """
         self.state.temperature = self.thermal_camera.get_last_temperature()
         if self.state.attack_enabled():
+            def calculate_eta(percent_complete, start_time, current_time) -> str:
+                if percent_complete <= 0:
+                    return 'calculating...'
+                if percent_complete >= 1:
+                    return 'now'
+                # Calculate the elapsed time
+                elapsed_time = current_time - start_time
+                # Calculate the estimated remaining time
+                remaining_time = elapsed_time / percent_complete - elapsed_time
+                eta = current_time + remaining_time
+                return eta.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
             self.state.progress = self.attack_runner.get_progress()
             self.state.position = self.attack_runner.get_position()
+            self.state.eta = calculate_eta(self.state.progress, self.state.attack_start, datetime.now())
             if not self.is_running():
                 self.state.mode = self.state.MANUAL_MODE
+                self.state.attack_start = None
+                self.state.eta = None
         elif not self.is_running():
             self.state.position = self.marlin.get_position()
 
@@ -235,6 +250,7 @@ class WebSocketHelper:
         self.task = threading.Thread(target=self.attack_runner.run)
         self.task.start()
         self.state.mode = self.state.ATTACK_MODE
+        self.state.attack_start = datetime.now()
         return True
 
     def stop_attack(self) -> bool:

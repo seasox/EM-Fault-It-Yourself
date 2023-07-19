@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from datetime import datetime
 import json
 
 
@@ -32,6 +33,8 @@ class State:
         :param attacks: List of available attack names
         """
         self.mode = self.MANUAL_MODE
+        self.attack_start = None
+        self.eta = None
         self.position = [0, 0, 0]
         self.temperature = 0
         self.progress = 0
@@ -68,6 +71,7 @@ class State:
             'state': {
                 'mode': self.mode,
                 'position': '{:.6f} {:.6f} {:.6f}'.format(*self.position),
+                'eta': self.eta,
                 'temperature': '{:.2f}'.format(self.temperature),
                 'attacks': self.attacks,
                 'progress': '{:.2f}'.format(self.progress * 100),

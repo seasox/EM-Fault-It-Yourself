@@ -24,6 +24,7 @@ const app = Vue.createApp({
             state: {
                 mode: '',
                 position: '',
+                eta: '',
                 temperature: '',
                 attacks: [],
                 progress: '',
