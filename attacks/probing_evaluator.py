@@ -2,8 +2,6 @@ import pickle
 import sys
 from typing import Optional, Dict, Any
 
-import matplotlib.pyplot as plt
-
 
 def usage():
     print(f"Usage: {sys.argv[0]} $pickle [$board_overlay]")
@@ -25,12 +23,12 @@ def main():
         perf_xy_planes = []
         for z in range(dz):
             vis = {}
-            perf = [[0 for _ in range(dy)] for _ in range(dx)]
+            perf = [[0.0 for _ in range(dy)] for _ in range(dx)]
+            from attacks.probing import evaluate
+            from attacks.probing import Metric
             for x in range(dx):
                 for y in range(dy):
                     # the performances of the datapoints created at the location
-                    from attacks.probing import evaluate
-                    from attacks.probing import Metric
                     values = [evaluate(d, Metric.AnyFlipAnywhere) for d in dps[x][y][z]]
                     perf[x][y] = max(values or [0])
             vis["perf"] = perf
@@ -41,6 +39,7 @@ def main():
 
 
 def visualize(vis: Dict[str, Any], overlay: Optional[str]):
+    import matplotlib.pyplot as plt
     import numpy as np
     matrix = np.array(vis["perf"])
     fig, ax = plt.subplots()
