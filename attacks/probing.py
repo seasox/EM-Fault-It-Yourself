@@ -127,7 +127,7 @@ class Probing(Attack):
                          step_size=1,
                          max_target_temp=40,
                          cooling=1,
-                         repetitions=300)
+                         repetitions=1000)
         self.metric = Metric.AnyFlipAnywhere
         self.aw = None
 
