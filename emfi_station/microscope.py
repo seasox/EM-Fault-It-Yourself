@@ -116,7 +116,7 @@ class Microscope:
                 if len(self.frames) == 5:
                     self.frames = self.frames[1:]
                 self.frames.append(image)
-            time.sleep(2)  # sleep for a little while to not pester the camera too much
+            time.sleep(.2)  # sleep for a little while to not pester the camera too much
 
     def get_frame(self) -> bytes:
         """
