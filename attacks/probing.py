@@ -196,6 +196,10 @@ class Probing(Attack):
                 self.cs.pulse = True
             except Exception as e:
                 self.log.error(e)
+                time.sleep(5)
+                self.cs.disconnect()
+                time.sleep(5)
+                self.cs.connect()
                 continue
             return
 
