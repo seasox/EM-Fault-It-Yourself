@@ -71,6 +71,8 @@ class ThermalCamera:
                 for _ in range(10):
                     try:
                         self.mlx.getFrame(raw_image)
+                        # workaround for broken pixel 64 in our camera
+                        raw_image[64] = raw_image[63]
                         min_temp = np.min(raw_image)
                         break
                     except RuntimeError:
