@@ -65,8 +65,10 @@ def main():
                     safe_z=args.safe_z)
 
     pprint(config)
-    level = logging.INFO if args.verbosity else logging.ERROR
+    level = logging.DEBUG if args.verbosity else logging.INFO
     logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', stream=sys.stdout, level=level)
+    # protocol.py logs all websocket messages as DEBUG, which we usually don't need
+    logging.getLogger('websockets.server').setLevel(logging.INFO)
 
     EMFIStation(config)
 
