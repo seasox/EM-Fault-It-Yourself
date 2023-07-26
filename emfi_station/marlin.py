@@ -138,7 +138,7 @@ class Marlin:
             z = float(s[3].split(' ', 1)[0])
             return x, y, z
         except IndexError:
-            self.log.critical('Could not retrieve position.')
+            self.log.critical(f'Could not retrieve position from response "{pos_str}"')
             return 0, 0, 0
 
     def set_acceleration(self, acceleration: int) -> None:
