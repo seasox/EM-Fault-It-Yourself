@@ -113,6 +113,12 @@ const app = Vue.createApp({
     },
     created() {
         socket.onmessage = (msg) => {
+            if (this.timeoutHandler != null) {
+                window.clearTimeout(this.timeoutHandler);
+            }
+            this.timeoutHandler = window.setTimeout(function () {
+                this.showError("Socket Timeout");
+            }.bind(this), 5000);
             let data = JSON.parse(msg.data)
             if (data.type === 'microscope') {
                 if (this.cam === 'microscope') {
@@ -137,6 +143,18 @@ const app = Vue.createApp({
             } else {
                 console.log('Unknown message: ' + data);
             }
+        };
+        socket.onerror = (e1) => {
+            if (this.timeoutHandler) {
+                clearTimeout(this.timeoutHandler);
+            }
+            this.showError("WebSocket error: " + e1 + ". A reload is required.");
+        }
+        socket.onclose = (close_event) => {
+            if (this.timeoutHandler) {
+                clearTimeout(this.timeoutHandler);
+            }
+            this.showError("WebSocket closed. A reload is required.");
         };
     }
 });
