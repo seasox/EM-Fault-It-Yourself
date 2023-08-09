@@ -126,10 +126,10 @@ const app = Vue.createApp({
                 if (this.cam === 'calibration') {
                     this.stream = 'data:image/jpg;base64,' + data.image;
                 }
-            } else if (data.type == 'world') {
-		if (this.cam == 'world') {
-		    this.stream = 'data:image/jpg;base64,' + data.image;
-		}
+            } else if (data.type === 'world') {
+                if (this.cam === 'world') {
+                    this.stream = 'data:image/jpg;base64,' + data.image;
+                }
             } else if (data.type === 'error') {
                 this.showError(data.message);
             } else if (data.type === 'state') {
