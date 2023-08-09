@@ -65,13 +65,12 @@ class Marlin:
         """
         self.ser.close()
 
-    def __wait_cmd_completed(self, max_tries: int = 10) -> bytes:
+    def __wait_cmd_completed(self, max_tries: int = 10) -> None:
         """
         Waits for a command to be completed.
         HOST_KEEPALIVE_FEATURE has to be enabled in Marlin configuration.
         Marlin is expected to send a 'busy' message once a second (DEFAULT_KEEPALIVE_INTERVAL 1).
         :param max_tries: Maximum number of tries to receive 'ok' message.
-        :return: All received messages
         """
         msg = b''
         try:
@@ -87,13 +86,17 @@ class Marlin:
                 time.sleep(0.25)
                 counter += 1
                 if counter > max_tries:
-                    raise IOError('Timeout while waiting for a command to be completed: {:s}'.format(str(msg)))
+                    # workaround for marlin serial not responding during long-time experiments (>5 days).
+                    time.sleep(1)
+                    self.log.error(f"No OK_MSG from Marlin serial. msg buffer {msg}. Will assume everything is OK "
+                                   f"and wait for move completion")
+                    self.__wait_move_completed()
 
         except KeyboardInterrupt:
             self.emergency()
             raise
 
-        return msg + self.ser.read()
+        return
 
     def __wait_move_completed(self) -> None:
         """
