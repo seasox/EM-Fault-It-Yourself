@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 import logging
+import sys
 
 from .config import Config
 from .web_server import WebServer
@@ -31,10 +32,6 @@ class EMFIStation:
         :param config: Configuration object.
         """
         self.log = logging.getLogger(__name__)
-        if config.log_dir:
-            logfile = f'{config.log_dir}/emfi_station.log'
-            print(f'logging to {logfile}')
-            logging.basicConfig(filename=config.log_dir, encoding='utf-8')
         path = __file__.rsplit('/', 1)[0] + '/web'
         WebServer(config.host, config.http_port, path)
         ws = WebSocketServer(config)
@@ -44,3 +41,4 @@ class EMFIStation:
             self.log.critical('Exiting...')
             ws.shutdown()
             self.log.critical('Bye!')
+            sys.exit(1)

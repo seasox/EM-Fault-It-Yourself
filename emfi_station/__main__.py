@@ -66,7 +66,9 @@ def main():
 
     pprint(config)
     level = logging.DEBUG if args.verbosity else logging.INFO
-    logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', stream=sys.stdout, level=level)
+    logfile = f'{config.log_dir}/emfi_station.log'
+    print(f'logging to {logfile}')
+    logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', filename=logfile, level=level, encoding='utf-8')
     # protocol.py logs all websocket messages as DEBUG, which we usually don't need
     logging.getLogger('websockets.server').setLevel(logging.INFO)
 
