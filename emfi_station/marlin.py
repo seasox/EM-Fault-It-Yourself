@@ -292,20 +292,20 @@ class Marlin:
                 cmd += ' O'
             self.ser.clear()
             self.ser.cmd(cmd)
+            self.log.info('Homing axles: Z')
+            self.__wait_cmd_completed()
+        if x or y:
+            cmd = 'G28'
+            if x:
+                cmd += ' X'
+            if y:
+                cmd += ' Y'
+            if not force_homing:
+                cmd += ' O'
+            self.ser.clear()
+            self.ser.cmd(cmd)
             self.log.info('Homing axles: {:s}'.format(cmd.split('G28 ')[1]))
             self.__wait_cmd_completed()
-
-        cmd = 'G28'
-        if x:
-            cmd += ' X'
-        if y:
-            cmd += ' Y'
-        if not force_homing:
-            cmd += ' O'
-        self.ser.clear()
-        self.ser.cmd(cmd)
-        self.log.info('Homing axles: {:s}'.format(cmd.split('G28 ')[1]))
-        self.__wait_cmd_completed()
 
     def set_safe_height(self, z: float) -> None:
         """
