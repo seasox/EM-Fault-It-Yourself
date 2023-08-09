@@ -205,7 +205,7 @@ class Probing(Attack):
 
     def was_successful(self) -> bool:
         time_taken = self.device.wait_fault_window_end()
-        print(f"Waiting for fault window end took {time_taken} seconds")
+        self.log.info(f"Waiting for fault window end took {time_taken} seconds")
         if time_taken < 0:  # a timeout, we cannot say anything about the device's state!
             self.response_after_fault = Response({STATUS.FAULT_WINDOW_TIMEOUT}, None, None)
         else:  # we know the device sent the fault window end sequence
@@ -227,12 +227,12 @@ class Probing(Attack):
         performance = evaluate(d, self.metric)
         self.dps[x][y][z].append(d)
 
-        print(f"Performance: {performance},"
-              f" Status[before]: {self.response_before_fault.status},"
-              f" Status[after]: {self.response_after_fault.status}")
+        self.log.info(f"Performance: {performance},"
+                      f" Status[before]: {self.response_before_fault.status},"
+                      f" Status[after]: {self.response_after_fault.status}")
 
         if performance > 0:
-            print(
+            self.log.info(
                 f"The following registers are faulted: {[reg_name for reg_name in self.response_after_fault.reg_data if self.response_after_fault.reg_data[reg_name].is_faulted]}")
 
         print("-" * 100)
@@ -259,6 +259,7 @@ class Probing(Attack):
         filepath = _dir.joinpath(filename)
         fp = open(filepath, "wb")
         # evaluate the data:
+        self.log.debug(f'writing progress to pickle due to shutdown')
         pickle.dump(self.dps, fp)
         # storage_fp.close()
         self.cs.armed = 0
