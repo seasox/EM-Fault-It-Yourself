@@ -77,6 +77,10 @@ class ThermalCamera:
                         break
                     except RuntimeError:
                         continue
+                if min_temp == 0:
+                    self.log.critical("failed to get frame from thermal camera")
+                    time.sleep(5)
+                    self.__init_cam()
             max_temp = np.max(raw_image)
             self.last_temperature = float(max_temp)
             uint_image = self.__temp_to_uint8(raw_image, min_temp, max_temp)
