@@ -13,8 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from typing import Tuple
 
 import pyudev
+
 
 # ChipShouter vendor=0403 model=6015 subsystem=tty
 # SKR Pro vendor=0483 model=5740 subsystem=tty
@@ -115,3 +117,8 @@ def compute_positions(start: list[float, float, float], stop: list[float, float,
                 pass
 
     return positions
+
+
+def add_tuples(a, b) -> Tuple:
+    assert (len(a) == len(b))
+    return tuple([a[i] + b[i] for i in range(len(a))])

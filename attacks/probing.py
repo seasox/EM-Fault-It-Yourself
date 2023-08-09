@@ -1,18 +1,18 @@
 import os
+import pickle
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
-import pickle
 from pathlib import Path
-
-from bitstring import BitArray
-
-from Comm import Comm, Register, Response, STATUS
+from typing import Tuple, Dict, List, Set
 
 import numpy as np
+from bitstring import BitArray
 from chipshouter import ChipSHOUTER
+
+from Comm import Comm, Register, Response, STATUS
 from emfi_station import Attack
-from typing import Tuple, Dict, List, Set
+from emfi_station.utils import add_tuples
 
 
 class BitFlip(Enum):
@@ -26,6 +26,7 @@ class BitFlip(Enum):
 
     def __repr__(self):
         return self.name
+
 
 @dataclass
 class Datapoint:
@@ -48,6 +49,7 @@ class Datapoint:
 
     def __calc_reg_diff(self) -> Dict[str, List[BitFlip]]:
         data = {}
+
         def _diff(pre: Register, post: Register) -> list[BitFlip]:
             flips = []
             for a, b in zip(pre.data.bin, post.data.bin):
@@ -61,7 +63,6 @@ class Datapoint:
                     flips.append(BitFlip.ONE_TO_ZERO)
             return flips
 
-
         for reg_name in self.reg_names:
             pre = self.__regs_before_fault[reg_name]
             post = self.__regs_after_fault[reg_name]
@@ -69,7 +70,7 @@ class Datapoint:
                 data[reg_name] = _diff(pre, post)
         return data
 
-    def get_01_flips(self, reg_name)-> int:
+    def get_01_flips(self, reg_name) -> int:
         return self.reg_diff[reg_name].count(BitFlip.ZERO_TO_ONE)
 
     def get_10_flips(self, reg_name) -> int:
@@ -101,20 +102,19 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
                 return -1
             return sum([dp.get_01_flips(reg_name) + dp.get_10_flips(reg_name) for reg_name in dp.reg_names])
 
-stm32f4_x_delta = 12
-stm32f4_y_delta = 12
-stm32f4_z_delta = 0
 
-stm32f4_start = (97, 60, 86)
-stm32f4_end = (109, 72, 86)
+# chip dimensions: 9x9 mm
+stm32l0_delta = (2, 5, 0)
+stm32l0_start = (110, 62, 83)
+stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 
-stm32f4_r0_2_7_fault = (107, 92, 84)
-stm32f4_all_fault = (99, 99, 86)
+# chip dimensions: 1x12 mm
+stm32f4_delta = (12, 12, 0)
+stm32f4_start = (97, 60, 83)
+stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
 
-stm32f4_long_term_start = (97, 60, 86)
-stm32f4_long_term_end = (stm32f4_long_term_start[0] + stm32f4_x_delta,
-                         stm32f4_long_term_start[1] + stm32f4_y_delta,
-                         stm32f4_long_term_start[2] + stm32f4_z_delta)
+repetitions = 1000
+
 
 class Probing(Attack):
     cs: ChipSHOUTER
@@ -122,12 +122,12 @@ class Probing(Attack):
     response_after_fault: Response
 
     def __init__(self):
-        super().__init__(start_pos=stm32f4_long_term_start,
-                         end_pos=stm32f4_long_term_end,
+        super().__init__(start_pos=stm32l0_start,
+                         end_pos=stm32l0_end,
                          step_size=1,
                          max_target_temp=40,
-                         cooling=1,
-                         repetitions=1000)
+                         cooling=0.5,
+                         repetitions=repetitions)
         self.metric = Metric.AnyFlipAnywhere
         self.aw = None
 
@@ -234,8 +234,6 @@ class Probing(Attack):
         if performance > 0:
             self.log.info(
                 f"The following registers are faulted: {[reg_name for reg_name in self.response_after_fault.reg_data if self.response_after_fault.reg_data[reg_name].is_faulted]}")
-
-        print("-" * 100)
 
         if self.metric == Metric.AnyFlipAnywhere:
             return performance > 0
