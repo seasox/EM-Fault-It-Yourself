@@ -81,10 +81,10 @@ class AttackWorker:
         self.running = True
         self.a_log.create_file()
         self.a_log.log('Starting attack...')
-        self.marlin.set_fan_speed(min(int(self.attack.cooling * 255), 255))
         positions = compute_positions(self.attack.start_pos, self.attack.end_pos, self.attack.step_size)
         self.attack.init(self)
         self.__move_to_start()
+        self.marlin.set_fan_speed(min(int(self.attack.cooling * 255), 255))
         try:
             for i, pos in enumerate(positions):
                 if not self.running:
@@ -105,10 +105,11 @@ class AttackWorker:
                     if not self.attack.critical_check():
                         self.log.critical('Critical attack check failed.')
                         raise Exception('Critical attack check failed')
-                    if not self.__check_temp():
-                        time.sleep(20)
+                    while not self.__check_temp():
+                        time.sleep(5)
         finally:
             self.attack.shutdown()
+            self.marlin.set_fan_speed(0)
             self.a_log.log('Stopping attack...')
             self.a_log.close()
 
@@ -118,6 +119,7 @@ class AttackWorker:
         :return: None
         """
         self.attack.shutdown()
+        self.marlin.set_fan_speed(0)
         self.running = False
 
     def __move_to_start(self) -> None:
