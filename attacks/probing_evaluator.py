@@ -7,6 +7,21 @@ def usage():
     print(f"Usage: {sys.argv[0]} $pickle [$board_overlay]")
 
 
+def discrete_cmap(N, base_cmap=None):
+    """Create an N-bin discrete colormap from the specified input map"""
+
+    # Note that if base_cmap is a string or None, you can simply do
+    #    return plt.cm.get_cmap(base_cmap, N)
+    # The following works for string, None, or a colormap instance:
+
+    from matplotlib import pyplot as plt
+    import numpy as np
+    base = plt.colormaps[base_cmap]
+    color_list = base(np.linspace(0, 1, N))
+    cmap_name = base.name + str(N)
+    return base.from_list(cmap_name, color_list, N)
+
+
 def main():
     if len(sys.argv) < 2:
         usage()
@@ -48,7 +63,7 @@ def visualize(vis: Dict[str, Any], overlay: Optional[str]):
         im = plt.imread(overlay)
         im = np.flipud(im)
         ax.imshow(im, extent=[-1, matrix.shape[1], -1, matrix.shape[0]])
-    heatmap = ax.imshow(matrix, cmap='viridis', alpha=0.5, interpolation='nearest')
+    heatmap = ax.imshow(matrix, cmap=discrete_cmap(10, 'Greens'), alpha=0.5, interpolation='nearest')
     ax.set_aspect('equal')
     plt.title(vis["title"])
     fig.colorbar(heatmap)
