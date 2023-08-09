@@ -135,7 +135,7 @@ class AttackWorker:
     def __check_temp(self) -> bool:
         """
         Retrieves target temperature and checks if it is too high.
-        :return: False if target temperature is to high.
+        :return: False if target temperature is too high.
         """
         temp = self.thermal_cam.get_last_temperature()
         if temp > self.attack.max_target_temp:
