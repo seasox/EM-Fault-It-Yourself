@@ -100,7 +100,7 @@ const app = Vue.createApp({
         },
         switchCam(name) {
             this.cam = name;
-	    this.stream = 'cam_loading.svg';
+            this.stream = 'cam_loading.svg';
         },
         setSafeZ(z) {
             this.sendCmd('safeZ', {'z': z});
