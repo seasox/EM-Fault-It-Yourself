@@ -2,7 +2,7 @@ import os
 import pickle
 import time
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import Enum, auto, IntEnum
 from pathlib import Path
 from typing import Tuple, Dict, List, Set
 
@@ -15,7 +15,7 @@ from emfi_station import Attack
 from emfi_station.utils import add_tuples
 
 
-class BitFlip(Enum):
+class BitFlip(IntEnum):
     ZERO_TO_ZERO = auto()
     ONE_TO_ONE = auto()
     ZERO_TO_ONE = auto()
