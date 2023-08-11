@@ -11,8 +11,8 @@
 
 #ifdef STM32F4
 #define SCK_PIN PB3
-#define MISO_PIN PB4
-#define MOSI_PIN PB5
+#define MISO_PIN PB5
+#define MOSI_PIN PB4
 #define NUM_ITERS "0xC80000"
 #endif
 
