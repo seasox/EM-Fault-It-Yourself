@@ -108,12 +108,12 @@ stm32l0_delta = (2, 5, 0)
 stm32l0_start = (110, 62, 83)
 stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 
-# chip dimensions: 1x12 mm
+# chip dimensions: 12x12 mm
 stm32f4_delta = (12, 12, 0)
-stm32f4_start = (97, 60, 83)
+stm32f4_start = (99, 60, 80)
 stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
 
-repetitions = 1000
+repetitions = 100
 
 
 class Probing(Attack):
@@ -122,8 +122,8 @@ class Probing(Attack):
     response_after_fault: Response
 
     def __init__(self):
-        super().__init__(start_pos=stm32l0_start,
-                         end_pos=stm32l0_end,
+        super().__init__(start_pos=stm32f4_start,
+                         end_pos=stm32f4_end,
                          step_size=1,
                          max_target_temp=40,
                          cooling=0.5,
