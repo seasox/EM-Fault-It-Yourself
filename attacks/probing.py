@@ -85,6 +85,7 @@ class Datapoint:
 
 class Metric(Enum):
     AnyFlipAnywhere = auto()
+    Crash = auto()
 
 
 def evaluate(dp: Datapoint, metric: Metric) -> float:
@@ -101,6 +102,10 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
             if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
             return sum([dp.get_01_flips(reg_name) + dp.get_10_flips(reg_name) for reg_name in dp.reg_names])
+        case Metric.Crash:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+                return 1
+            return 0
 
 
 # chip dimensions: 9x9 mm

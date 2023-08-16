@@ -36,16 +36,13 @@ def main():
             return max(values or [0])
 
         def success_rate_cb(values):
-            return len(list(filter(lambda p: p > 0, values))) / len(values)
-
-        def crash_rate_cb(values):
-            return len(list(filter(lambda p: p < 0, values))) / len(values)
+            return len(list(filter(lambda p: p > 0, values))) / len(values) if len(values) > 0 else 0
 
         dps: [Datapoint] = pickle.load(fp)  # TODO implement JSON import/export. Pickles are kinda slow
         make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'), Metric.AnyFlipAnywhere, "Max Score", max_cb)
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[#flip > 0]",
+        make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[Flips > 0]",
                      success_rate_cb)
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.AnyFlipAnywhere, "Pr[crash]", crash_rate_cb)
+        make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.Crash, "Pr[Crash = 1]", success_rate_cb)
 
 
 def make_heatmap(dps: [[[Datapoint]]], overlay, cmap, metric, title, callback):
@@ -63,7 +60,7 @@ def make_heatmap(dps: [[[Datapoint]]], overlay, cmap, metric, title, callback):
                 values = [evaluate(d, metric) for d in dps[x][y][z]]
                 perf[y][x] = callback(values)
         vis["perf"] = perf
-        vis["title"] = f"{title}; {metric}; Layer {83 + dps[0][0][z][0].attack_location[2]}"
+        vis["title"] = f"{title}; {metric}; Z={dps[0][0][z][0].attack_location[2]}"
         perf_xy_planes.append(vis)
     for plane in perf_xy_planes:
         visualize(plane, overlay, cmap)
