@@ -174,7 +174,7 @@ class Probing(Attack):
 
     @staticmethod
     def name() -> str:
-        return "Probing Attack"
+        return f"Probing Attack ({stm32f4_start} => {stm32f4_end})"
 
     def __init_dp_matrix(self):
         # this order is required to access the matrix using [x][y][z]
