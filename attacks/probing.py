@@ -116,9 +116,15 @@ stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 # chip dimensions: 12x12 mm
 stm32f4_delta = (12, 12, 0)
 stm32f4_start = (99, 60, 80)
+stm32f4_start_offset = (8, 0, 0)
+stm32f4_end_offset = (0, -2, 0)
+
 stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
 
-repetitions = 100
+stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
+stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
+
+repetitions = 1000
 
 
 class Probing(Attack):
