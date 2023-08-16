@@ -125,7 +125,7 @@ class Probing(Attack):
         super().__init__(start_pos=stm32f4_start,
                          end_pos=stm32f4_end,
                          step_size=1,
-                         max_target_temp=40,
+                         max_target_temp=60,
                          cooling=0.5,
                          repetitions=repetitions)
         self.metric = Metric.AnyFlipAnywhere
