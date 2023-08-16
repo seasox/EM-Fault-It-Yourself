@@ -1,9 +1,10 @@
 import time
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List, Dict
-from dataclasses import dataclass, field
-from typing_extensions import Literal
+
 from bitstring import BitArray
+from typing_extensions import Literal
 
 
 @dataclass
@@ -103,8 +104,8 @@ class Comm:
             self.reg_size), "The data expected in the registers must have the same number of bytes as the registers that are read"
 
         # Timing constants
-        self.__low_time = .0001
-        self.__high_time = .0001
+        self.__low_time = .001
+        self.__high_time = .001
         # the maximum time we wait for the device. Make sure to sync with the fault window from the DUT!
         self.__wait_end_seq_time = 3
         # we should not wait here anyway
