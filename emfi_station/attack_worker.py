@@ -14,15 +14,15 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import time
 import logging
+import time
 from typing import Optional
 
-from .marlin import Marlin
-from .utils import compute_positions
-from .attack_logger import AttackLogger
-from .thermal_camera import ThermalCamera
 from .attack_importer import AttackImporter
+from .attack_logger import AttackLogger
+from .marlin import Marlin
+from .thermal_camera import ThermalCamera
+from .utils import compute_positions
 
 
 class AttackWorker:
@@ -132,13 +132,15 @@ class AttackWorker:
         self.marlin.move(y=self.attack.start_pos[1])
         self.marlin.move(z=self.attack.start_pos[2])
 
+    TEMP_SENSOR_UPPER_BOUND = 400  # ignore (wrong) temperature readings above this thresholds
+
     def __check_temp(self) -> bool:
         """
         Retrieves target temperature and checks if it is too high.
         :return: False if target temperature is too high.
         """
         temp = self.thermal_cam.get_last_temperature()
-        if temp > self.attack.max_target_temp:
+        if self.attack.max_target_temp < temp < self.TEMP_SENSOR_UPPER_BOUND:
             self.log.critical('Target temperature too high: {}'.format(temp))
             return False
         else:
