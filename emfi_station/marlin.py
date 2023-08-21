@@ -14,13 +14,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import time
 import logging
 import threading
+import time
 from typing import Optional
 
-from .utils import get_device_fd
 from .marlin_serial import MarlinSerial
+from .utils import get_device_fd
 
 BUSY_MSG = b'echo:busy: processing\n'
 OK_MSG = b'ok\n'
@@ -44,16 +44,15 @@ class Marlin:
         :param safe_z: Make sure the stage does not move below this value
         """
         self.log = logging.getLogger(__name__)
-        tty = None
         try:
             if not simulate:
-                tty = get_device_fd(vendor_id, product_id, 'tty', idx=idx)
+                get_device_fd(vendor_id, product_id, 'tty', idx=idx)
             else:
                 self.log.critical('Simulation active.')
         except FileNotFoundError:
             self.log.critical('Marlin board unavailable. Simulation active.')
             simulate = True
-        self.ser = MarlinSerial(tty, simulate)
+        self.ser = MarlinSerial(vendor_id, product_id, idx, simulate)
         self.ser.cmd('M211 S0')
         self.continuous_movement = None
         self.safe_z = safe_z
@@ -72,13 +71,15 @@ class Marlin:
         Marlin is expected to send a 'busy' message once a second (DEFAULT_KEEPALIVE_INTERVAL 1).
         :param max_tries: Maximum number of tries to receive 'ok' message.
         """
-        msg = b''
         try:
             counter = 0
             while True:
-                res = self.ser.read()
-                if res:
-                    msg += res
+                from serial import SerialException, PortNotOpenError
+                try:
+                    res = self.ser.read()
+                except SerialException or PortNotOpenError:
+                    self.ser.reconnect()
+                    continue
                 if res == BUSY_MSG:
                     counter = 0
                 if res == OK_MSG:
@@ -87,10 +88,9 @@ class Marlin:
                 counter += 1
                 if counter > max_tries:
                     # workaround for marlin serial not responding during long-time experiments (>5 days).
-                    time.sleep(1)
-                    self.log.error(f"No OK_MSG from Marlin serial. msg buffer {msg}. Will assume everything is OK "
-                                   f"and wait for move completion")
-                    self.__wait_move_completed()
+                    self.log.error(f"No OK_MSG from Marlin serial.")
+                    self.ser.reconnect()
+                    counter = 0
 
         except KeyboardInterrupt:
             self.emergency()
@@ -173,10 +173,16 @@ class Marlin:
             cmd += 'Y{:f}'.format(y)
         if z is not None:
             cmd += 'Z{:f}'.format(z)
-        self.ser.cmd(cmd)
-        self.log.info('Moving to X={:s}, Y={:s}, Z={:s}.'.format(str(x), str(y), str(z)))
-        self.__wait_cmd_completed()
-        self.__wait_move_completed()
+        while True:
+            from serial import SerialException, PortNotOpenError
+            try:
+                self.ser.cmd(cmd, False)
+                self.log.info('Moving to X={:s}, Y={:s}, Z={:s}.'.format(str(x), str(y), str(z)))
+                self.__wait_cmd_completed()
+                self.__wait_move_completed()
+                break
+            except SerialException or PortNotOpenError:
+                self.home(x=True, y=True, z=True, force_homing=False)
 
     def relative_move(self, x: Optional[float] = None, y: Optional[float] = None, z: Optional[float] = None,
                       feed_rate: float = 5) -> None:
@@ -226,7 +232,8 @@ class Marlin:
             cmd += 'Y{:f}'.format(step * y)
         if z:
             cmd += 'Z{:f}'.format(step * z)
-        self.ser.cmd(cmd)
+        # SAFETY: this might raise an Exception. We don't want to catch here as we don't know our current position
+        self.ser.cmd(cmd, False)
         self.__wait_move_completed()
 
     def continuous_update(self, x: Optional[float] = None, y: Optional[float] = None, z: Optional[float] = None):
@@ -271,8 +278,14 @@ class Marlin:
         if z is not None:
             cmd += 'Z'
         cmd += ' S{:d}'.format(slot)
-        self.ser.cmd(cmd)
-        self.__wait_cmd_completed()
+        while True:
+            from serial import SerialException, PortNotOpenError
+            try:
+                self.ser.cmd(cmd, False)
+                self.__wait_cmd_completed()
+                break
+            except SerialException or PortNotOpenError:
+                self.home(x=True, y=True, z=True, force_homing=False)
 
     def home(self, x: bool = False, y: bool = False, z: bool = False, force_homing=True) -> None:
         """

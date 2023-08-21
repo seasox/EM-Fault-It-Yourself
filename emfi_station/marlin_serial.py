@@ -14,26 +14,32 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-import time
-import serial
 import logging
+import time
+
+import serial
 
 
 class MarlinSerial:
     """
     Manages serial connection to Marlin-based controller board.
     """
-    def __init__(self, tty: str, sim: bool = False) -> None:
+
+    def __init__(self, vendor_id: str, product_id: str, idx: int, sim: bool = False) -> None:
         """
         Connects to Marlin-based controller board.
-        :param tty: Serial port to connect to.
+        :param vendor_id vendor id of device to connect to
+        :param product_id product id of device to connect to
+        :param idx device idx of device to connect to
         :param sim: Simulate serial connection if True.
         """
         self.log = logging.getLogger(__name__)
+        self.vendor_id = vendor_id
+        self.product_id = product_id
+        self.idx = idx
         self.sim = sim
-        if not self.sim:
-            self.ser = serial.Serial(port=tty, baudrate=115200, timeout=0.25)
-            self.clear()
+        self.ser = None
+        self.open()
 
     def clear(self) -> None:
         """
@@ -62,19 +68,38 @@ class MarlinSerial:
             self.log.debug('Read from serial port: {:s}'.format(str(msg)))
             return msg
 
+    def reconnect(self):
+        self.close()
+        time.sleep(1)
+        self.open()
+
+    def open(self):
+        if self.ser:
+            self.close()
+        if not self.sim:
+            from emfi_station.utils import get_device_fd
+            tty = get_device_fd(vendor=self.vendor_id, product=self.product_id, subsystem="tty", idx=self.idx)
+            self.log.info(f"Connecting to TTY {tty}")
+            self.ser = serial.Serial(port=tty, baudrate=115200, timeout=0.25)
+            self.clear()
+
     def close(self) -> None:
         """
         Closes serial port.
         :return: None
         """
         self.log.info('Closing serial port.')
-        if not self.sim:
+        if self.ser:
             self.ser.close()
+            self.ser = None
 
-    def cmd(self, cmd: str) -> None:
+    def cmd(self, cmd: str, retriable: bool = True) -> None:
         """
         Sends command via serial.
         :param cmd: Command string (e.g.: 'M122')
+        :param retriable: whether this command can be retried after a connection reset or not.
+                SAFETY: set this to false for move commands, catch SerialException and PortNotOpenError
+                        and possibly home in exception handler
         :return: None
         """
         self.last_cmd = cmd
@@ -82,5 +107,14 @@ class MarlinSerial:
             self.log.info('Sending: {:s}'.format(str(cmd)))
         else:
             self.log.debug('Write to serial port: {:s}'.format(str(cmd)))
-            self.ser.write((cmd + '\n').encode())
-            self.ser.flush()
+            while True:
+                from serial import SerialException
+                from serial import PortNotOpenError
+                try:
+                    self.ser.write((cmd + '\n').encode())
+                    self.ser.flush()
+                    break
+                except SerialException or PortNotOpenError as e:
+                    self.reconnect()
+                    if not retriable:
+                        raise e
