@@ -13,14 +13,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import time
-
-import cv2
 import logging
 import threading
-from numpy import ndarray
-from typing import Optional
+import time
 from importlib.resources import read_binary
+from typing import Optional
+
+import cv2
+from numpy import ndarray
 
 from .utils import get_device_fd
 
@@ -68,8 +68,9 @@ class Microscope:
             if self.resolution is not None:
                 self.__set_resolution(*self.resolution)
         except FileNotFoundError as e:
-            self.log.critical(
-                'Camera is not available: {:s}:{:s}:{:d}'.format(self.vendor_id, self.product_id, self.idx), e)
+            self.log.error(
+                'Camera is not available: {:s}:{:s}:{:d}: {:s}'.format(self.vendor_id, self.product_id, self.idx,
+                                                                       str(e)))
 
     def __set_resolution(self, width: int, height: int) -> None:
         """
