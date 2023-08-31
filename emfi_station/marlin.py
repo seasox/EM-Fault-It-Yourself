@@ -77,9 +77,10 @@ class Marlin:
                 from serial import SerialException, PortNotOpenError
                 try:
                     res = self.ser.read()
-                except SerialException or PortNotOpenError:
+                except SerialException or PortNotOpenError as e:
+                    self.log.error("caught exception during read")
                     self.ser.reconnect()
-                    continue
+                    raise e
                 if res == BUSY_MSG:
                     counter = 0
                 if res == OK_MSG:
