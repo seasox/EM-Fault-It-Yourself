@@ -1,3 +1,4 @@
+import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -71,6 +72,8 @@ class Comm:
                  reg_data_expected: List[int]):
         import RPi.GPIO as GPIO
 
+        self.log = logging.getLogger(__name__)
+
         # Config pins
         self.miso_pin = miso_pin
         self.clk_pin = clk_pin
@@ -127,11 +130,18 @@ class Comm:
 
     def read(self, num_words: int, bits_per_word=8) -> BitArray:
         import RPi.GPIO as GPIO
-        assert GPIO.input(self.clk_pin)  # assumes a high output
+        if not GPIO.input(self.clk_pin):  # assumes a high output
+            self.log.error("Expected high GPIO state, but was low")
+            self._high()
         num_bits = num_words * bits_per_word
         _buffer = ""
         for _ in range(num_bits):
-            assert GPIO.input(self.clk_pin)  # assumes a high output
+            if not GPIO.input(self.clk_pin):  # assumes a high output
+                self.log.warning("Expected high GPIO state, but was low")
+                self._high()
+            if not GPIO.input(self.clk_pin):  # assumes a high output
+                self.log.error("Failed to fix clock state")
+                assert False
             self._low()
             _buffer += str(GPIO.input(self.miso_pin))
             self._high()
