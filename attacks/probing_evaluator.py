@@ -42,7 +42,14 @@ def main():
         make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'), Metric.AnyFlipAnywhere, "Max Score", max_cb)
         make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[Flips > 0]",
                      success_rate_cb)
+        make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5, "Zero-To-One on R4 or R5",
+                     success_rate_cb)
+        make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5,
+                     "Max Score for Zero-To-One on R4 or R5",
+                     max_cb)
         make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.Crash, "Pr[Crash = 1]", success_rate_cb)
+        make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.ResetUnsuccessful, "Reset Unsuccessful",
+                     success_rate_cb)
 
 
 def make_heatmap(dps: [[[Datapoint]]], overlay, cmap, metric, title, callback):
