@@ -3,3 +3,4 @@ venv
 log
 build
 .DS_Store
+.idea
