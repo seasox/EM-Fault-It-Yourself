@@ -39,6 +39,11 @@ class Register:
         else:
             self.data_float = None if self.data is None else self.data.floatbe
 
+    def hamming_weight(self) -> int:
+        if self.data is None:
+            return 0
+        return self.data.count(1)
+
 
 class STATUS(int, Enum):
     EXPECTED_DATA_MISMATCH = 0
@@ -92,7 +97,7 @@ class Comm:
                  reg_size: int | List[int],
                  fault_window_start_seq: BitArray,
                  fault_window_end_seq: BitArray,
-                 reg_data_expected: List[int]):
+                 reg_data_expected: Optional[List[int]]):
         import RPi.GPIO as GPIO
 
         self.reset = reset
