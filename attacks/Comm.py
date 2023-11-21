@@ -196,17 +196,20 @@ class Comm:
         _buffer_cp = _buffer.copy()
         status: set[STATUS] = set()
 
-        def _parse_with_expected_data():
+        def _fetch_registers():
             _data: Dict[str, Register] = {}
             for i, (reg_name, reg_width) in enumerate(zip(self.regs, self.reg_size)):
                 bit_width = reg_width * 8
                 actual = BitArray(bytes=_buffer.bytes[:reg_width])
-                expected = self.reg_data_expected[i]  # the value (int) we expect
-                del _buffer[:bit_width]  # remove the bits from the buffer
-                is_faulted = expected != actual.uintle
-                if is_faulted:
-                    status.add(STATUS.EXPECTED_DATA_MISMATCH)  # we can check for this flag later
+                if self.reg_data_expected is not None:
+                    expected = self.reg_data_expected[i]  # the value (int) we expect
+                    del _buffer[:bit_width]  # remove the bits from the buffer
+                    is_faulted = expected != actual.uintle
+                    if is_faulted:
+                        status.add(STATUS.EXPECTED_DATA_MISMATCH)  # we can check for this flag later
+                else:
+                    is_faulted = False
                 _data[reg_name] = Register(reg_name, bit_width, actual, is_faulted=is_faulted)
             return _data
 
-        return Response(status, _buffer_cp, _parse_with_expected_data())
+        return Response(status, _buffer_cp, _fetch_registers())
