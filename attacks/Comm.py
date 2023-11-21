@@ -60,11 +60,34 @@ class Response:
     raw: BitArray | None = field(repr=False)
     reg_data: Dict[str, Register] | None
 
+
+class ResetRelay:
+    def __init__(self, reset_pin: int):
+        import RPi.GPIO as GPIO
+        self.__relay_time = .8
+        self.__boot_up_time = 1.5
+        self.reset_pin = reset_pin
+        GPIO.setmode(GPIO.BCM)  # This is needed as adafruit uses BCM Mode
+        GPIO.setup(self.reset_pin, GPIO.OUT)
+        GPIO.output(self.reset_pin, 1)  # Reset is pulldown
+
+    def reset(self):
+        import RPi.GPIO as GPIO
+        # turn off device
+        GPIO.output(self.reset_pin, 1)
+        # wait until relay changes state
+        time.sleep(self.__relay_time)
+        GPIO.output(self.reset_pin, 0)
+        # wait until relay changes state and device reboots
+        time.sleep(self.__relay_time)
+        time.sleep(self.__boot_up_time)
+
+
 class Comm:
     def __init__(self,
+                 reset: ResetRelay,
                  miso_pin: int,
                  clk_pin: int,
-                 reset_pin: int,
                  regs: int | List[str],
                  reg_size: int | List[int],
                  fault_window_start_seq: BitArray,
@@ -72,20 +95,19 @@ class Comm:
                  reg_data_expected: List[int]):
         import RPi.GPIO as GPIO
 
+        self.reset = reset
+
         self.log = logging.getLogger(__name__)
 
         # Config pins
         self.miso_pin = miso_pin
         self.clk_pin = clk_pin
-        self.reset_pin = reset_pin
 
         GPIO.setmode(GPIO.BCM)  # This is needed as adafruit uses BCM Mode
         GPIO.setup(self.miso_pin, GPIO.IN)
         GPIO.setup(self.clk_pin, GPIO.OUT)
-        GPIO.setup(self.reset_pin, GPIO.OUT)
 
         GPIO.output(self.clk_pin, 1)  # init clock to high
-        GPIO.output(self.reset_pin, 1)  # Reset is pulldown
 
         # init device specific config
         self.regs: List[str] = [f"r{i}" for i in range(regs)] if type(regs) is int else regs
@@ -113,10 +135,8 @@ class Comm:
         self.__wait_end_seq_time = 3
         # we should not wait here anyway
         self.__wait_start_seq_time = 5
-        self.__boot_up_time = 1.5
-        self.__relay_time = .8
 
-        self.reset()
+        self.reset.reset()
 
     def _high(self):
         import RPi.GPIO as GPIO
@@ -146,17 +166,6 @@ class Comm:
             _buffer += str(GPIO.input(self.miso_pin))
             self._high()
         return BitArray(bin=_buffer)
-
-    def reset(self):
-        import RPi.GPIO as GPIO
-        # turn off device
-        GPIO.output(self.reset_pin, 1)
-        # wait until relay changes state
-        time.sleep(self.__relay_time)
-        GPIO.output(self.reset_pin, 0)
-        # wait until relay changes state and device reboots
-        time.sleep(self.__relay_time)
-        time.sleep(self.__boot_up_time)
 
     def wait_fault_window_start(self) -> float:
         start = time.time()

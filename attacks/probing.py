@@ -10,7 +10,7 @@ import numpy as np
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
 
-from Comm import Comm, Register, Response, STATUS
+from Comm import Comm, Register, Response, STATUS, ResetRelay
 from emfi_station import Attack
 from emfi_station.utils import add_tuples
 
@@ -175,9 +175,10 @@ class Probing(Attack):
                               0xaaaaaaaa,
                               0xaaaaaaaa,
                               0]
-        self.device = Comm(miso_pin=self.miso_pin,
+        self.reset = ResetRelay(reset_pin=self.reset_pin)
+        self.device = Comm(reset=self.reset,
+                           miso_pin=self.miso_pin,
                            clk_pin=self.clk_pin,
-                           reset_pin=self.reset_pin,
                            regs=self.regs,
                            reg_size=self.reg_size,
                            fault_window_start_seq=self.fault_window_start_seq,
@@ -264,8 +265,8 @@ class Probing(Attack):
         raise LookupError(f"Metric {self.metric} not covered")
 
     def reset_target(self) -> None:
-        self.device.reset()
-        self.response_before_fault = self.device.read_regs()
+        self.reset.reset()
+        self.response_before_fault = self.device.read_regs(lambda i: self.expected_data[i])
 
     def critical_check(self) -> bool:
         return True
