@@ -13,13 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import ast
-import sys
+
 import logging
 import argparse
 from pprint import pprint
-from typing import Optional, List, Tuple
-
+from pathlib import Path
 from .config import Config
 from .emfi_station import EMFIStation
 
@@ -66,9 +64,11 @@ def main():
 
     pprint(config)
     level = logging.DEBUG if args.verbosity else logging.INFO
-    logfile = f'{config.log_dir}/emfi_station.log'
-    print(f'logging to {logfile}')
-    logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', filename=logfile, level=level, encoding='utf-8')
+    log_dir = Path(config.log_dir)
+    log_dir.mkdir(exist_ok=True)
+    assert log_dir.exists(), "Failed creating log directory"
+    log_file = log_dir.joinpath("emfi_station.log")
+    logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', filename=log_file, level=level, encoding='utf-8')
     # protocol.py logs all websocket messages as DEBUG, which we usually don't need
     logging.getLogger('websockets.server').setLevel(logging.INFO)
 
