@@ -28,7 +28,7 @@ class BitFlip(IntEnum):
         return self.name
 
 
-@dataclass
+@dataclass(eq=False)
 class Datapoint:
     response_before_fault: Response
     response_after_fault: Response
@@ -81,6 +81,26 @@ class Datapoint:
         for reg_name in self.reg_names:
             s += f"{reg_name} | 0 -> 1: {self.get_01_flips(reg_name)} | 1 -> 0: {self.get_10_flips(reg_name)} \n"
         return s
+
+    def __eq__(self, other):
+        return self.response_before_fault == other.response_before_fault \
+            and self.response_after_fault == other.response_after_fault \
+            and self.attack_location == other.attack_location \
+            and self.reg_diff == other.reg_diff \
+            and self.reg_names == other.reg_names
+
+    def to_json(self) -> Dict[str, str | Dict | Tuple]:
+        return {
+            'response_before_fault': self.response_before_fault.to_json(),
+            'response_after_fault': self.response_after_fault.to_json(),
+            'attack_location': [int(i) for i in self.attack_location],  # np int64 is not serializable
+        }
+
+    @staticmethod
+    def from_json(dic: Dict[str, str | Dict | Tuple]) -> 'Datapoint':
+        return Datapoint(response_before_fault=Response.from_json(dic['response_before_fault']),
+                         response_after_fault=Response.from_json(dic['response_after_fault']),
+                         attack_location=tuple(dic['attack_location']))
 
 
 class Metric(Enum):
@@ -266,7 +286,7 @@ class Probing(Attack):
 
     def reset_target(self) -> None:
         self.reset.reset()
-        self.response_before_fault = self.device.read_regs(lambda i: self.expected_data[i])
+        self.response_before_fault = self.device.read_regs()
 
     def critical_check(self) -> bool:
         return True
@@ -285,7 +305,7 @@ class Probing(Attack):
         pickle.dump(self.dps, fp)
         # storage_fp.close()
         self.cs.armed = 0
-        self.device.reset()
+        self.reset.reset()
         print("End...")
 
 

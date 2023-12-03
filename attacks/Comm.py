@@ -8,17 +8,37 @@ from bitstring import BitArray
 from typing_extensions import Literal
 
 
-@dataclass
+@dataclass(eq=False)
 class Register:
     name: str
     width: int  # in bits
     data: Optional[BitArray]
-    data_uint: Optional[int] = field(init=False, default=None, repr=False)
-    data_int: Optional[int] = field(init=False, default=None, repr=False)
-    data_float: Optional[float] = field(init=False, default=None, repr=False)
     dirty: Optional[bool] = field(default=False, repr=False)
     is_faulted: bool = field(default=False)
     bitorder: Literal["little", "big"] = field(default="little", repr=False)
+    # those are calcualted in post_init
+    data_uint: Optional[int] = field(init=False, default=None, repr=False)
+    data_int: Optional[int] = field(init=False, default=None, repr=False)
+    data_float: Optional[float] = field(init=False, default=None, repr=False)
+
+    def to_json(self) -> dict[str, str | int]:
+        return {
+            'name': self.name,
+            'width': self.width,
+            'data': self.data.bin if self.data is not None else None,
+            'dirty': self.dirty,
+            'is_faulted': self.is_faulted,
+            'bitorder': self.bitorder,
+        }
+
+    @staticmethod
+    def from_json(dic) -> 'Register':
+        return Register(name=dic['name'],
+                        width=dic['width'],
+                        data=BitArray(bin=dic['data']) if dic['data'] is not None else None,
+                        dirty=dic['dirty'],
+                        is_faulted=dic['is_faulted'],
+                        bitorder=dic['bitorder'])
 
     def __post_init__(self):
         # the integer cast only requires full bytes:
@@ -44,6 +64,14 @@ class Register:
             return 0
         return self.data.count(1)
 
+    def __eq__(self, other):
+        return self.name == other.name \
+            and self.width == other.width \
+            and self.data == other.data \
+            and self.dirty == other.dirty \
+            and self.is_faulted == other.is_faulted \
+            and self.bitorder == other.bitorder
+
 
 class STATUS(int, Enum):
     EXPECTED_DATA_MISMATCH = 0
@@ -64,6 +92,20 @@ class Response:
     status: set[STATUS]
     raw: BitArray | None = field(repr=False)
     reg_data: Dict[str, Register] | None
+
+    def to_json(self) -> dict:
+        return {
+            'status': list(self.status),
+            'raw': self.raw.bin if self.raw is not None else None,
+            'reg_data': {k: v.to_json() for k, v in self.reg_data.items()} if self.reg_data is not None else None,
+        }
+
+    @staticmethod
+    def from_json(dic) -> 'Response':
+        return Response(status=set(dic['status']),
+                        raw=BitArray(bin=dic['raw']) if dic['raw'] is not None else None,
+                        reg_data={k: Register.from_json(v) for k, v in dic['reg_data'].items()} if dic[
+                                                                                                       'reg_data'] is not None else None)
 
 
 class ResetRelay:
@@ -218,3 +260,69 @@ class Comm:
             return _data
 
         return Response(status, _buffer_cp, _fetch_registers())
+
+
+import pickle
+import json
+import os
+
+
+def to_json(obj):
+    # Define your custom to_json function here
+    # This function should convert the unpickled object to dictionaries
+    # You can customize this function based on your object structure
+    # For example, you might want to use obj.__dict__ for class instances
+    # For simplicity, let's assume the object itself is directly serializable to JSON
+    if isinstance(obj, list):
+        return [to_json(o) for o in obj]
+    return obj.to_json()
+
+
+def from_json(obj, cls) -> list:
+    if isinstance(obj, list):
+        return [from_json(o, cls) for o in obj]
+    return cls.from_json(obj)
+
+
+def pickles_to_json(pickles_dir, json_dir):
+    # Ensure the output directory exists
+    os.makedirs(json_dir, exist_ok=True)
+
+    # List all .pickle files in the pickles directory
+    pickle_files = [f for f in os.listdir(pickles_dir) if f.endswith('.pickle')]
+
+    for pickle_file in pickle_files:
+        # Generate file paths
+        pickle_path = os.path.join(pickles_dir, pickle_file)
+        json_path = os.path.join(json_dir, pickle_file.replace('.pickle', '.json'))
+
+        print(f'Processing pickle {pickle_path}')
+        # Load pickled object
+        with open(pickle_path, 'rb') as pickle_file:
+            try:
+                unpickled_obj = pickle.load(pickle_file)
+            except Exception as e:
+                print(f'unpickle failed for file {pickle_path}: {e}')
+                continue
+
+        # Convert object to dictionaries using custom to_json function
+        json_data = to_json(unpickled_obj)
+
+        from attacks.probing import Datapoint
+        reconstructed = from_json(json_data, Datapoint)
+        assert reconstructed == unpickled_obj
+
+        if os.path.exists(json_path):
+            print(f'JSON file already exists: {json_path}')
+            continue
+        # Serialize dictionaries to JSON and write to the corresponding JSON file
+        with open(json_path, 'w') as json_file:
+            json.dump(json_data, json_file, indent=2)
+
+
+if __name__ == "__main__":
+    # Example usage
+    pickles_directory = '../pickles'
+    json_output_directory = '../dp_json'
+
+    pickles_to_json(pickles_directory, json_output_directory)
