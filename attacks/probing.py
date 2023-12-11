@@ -1,6 +1,7 @@
+import json
 import os
-import pickle
 import time
+import typing
 from dataclasses import dataclass, field
 from enum import Enum, auto, IntEnum
 from pathlib import Path
@@ -10,7 +11,7 @@ import numpy as np
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
 
-from Comm import Comm, Register, Response, STATUS, ResetRelay
+from Comm import Comm, Register, Response, STATUS, ResetRelay, DatapointEncoder
 from emfi_station import Attack
 from emfi_station.utils import add_tuples
 
@@ -91,15 +92,17 @@ class Datapoint:
 
     def to_json(self) -> Dict[str, str | Dict | Tuple]:
         return {
-            'response_before_fault': self.response_before_fault.to_json(),
-            'response_after_fault': self.response_after_fault.to_json(),
+            'type': 'Datapoint',
+            'response_before_fault': self.response_before_fault,
+            'response_after_fault': self.response_after_fault,
             'attack_location': [int(i) for i in self.attack_location],  # np int64 is not serializable
         }
 
     @staticmethod
-    def from_json(dic: Dict[str, str | Dict | Tuple]) -> 'Datapoint':
-        return Datapoint(response_before_fault=Response.from_json(dic['response_before_fault']),
-                         response_after_fault=Response.from_json(dic['response_after_fault']),
+    def from_json(dic: Dict[str, typing.Any]) -> 'Datapoint':
+        assert dic['type'] == 'Datapoint'
+        return Datapoint(response_before_fault=dic['response_before_fault'],
+                         response_after_fault=dic['response_after_fault'],
                          attack_location=tuple(dic['attack_location']))
 
 
@@ -294,16 +297,14 @@ class Probing(Attack):
     def shutdown(self) -> None:
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-        _dir = Path("pickles")
+        _dir = Path("dp_json")
         if not _dir.exists():
             os.makedirs(_dir)
-        filename = f"data_{timestamp}.pickle"
+        filename = f"data_{timestamp}.json"
         filepath = _dir.joinpath(filename)
-        fp = open(filepath, "wb")
-        # evaluate the data:
-        self.log.debug(f'writing progress to pickle due to shutdown')
-        pickle.dump(self.dps, fp)
-        # storage_fp.close()
+        self.log.debug(f'writing progress to JSON due to shutdown')
+        with open(filepath, "w") as fp:
+            json.dump(self.dps, fp, cls=DatapointEncoder)
         self.cs.armed = 0
         self.reset.reset()
         print("End...")

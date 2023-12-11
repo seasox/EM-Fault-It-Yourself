@@ -23,6 +23,7 @@ class Register:
 
     def to_json(self) -> dict[str, str | int]:
         return {
+            'type': 'Register',  # this is needed for the from_json method to work
             'name': self.name,
             'width': self.width,
             'data': self.data.bin if self.data is not None else None,
@@ -33,6 +34,7 @@ class Register:
 
     @staticmethod
     def from_json(dic) -> 'Register':
+        assert dic['type'] == 'Register', f"Expected type 'Register' but got '{dic['type']}'"
         return Register(name=dic['name'],
                         width=dic['width'],
                         data=BitArray(bin=dic['data']) if dic['data'] is not None else None,
@@ -87,7 +89,7 @@ class STATUS(int, Enum):
         return self.name
 
 
-@dataclass
+@dataclass(eq=False)
 class Response:
     status: set[STATUS]
     raw: BitArray | None = field(repr=False)
@@ -95,6 +97,7 @@ class Response:
 
     def to_json(self) -> dict:
         return {
+            'type': 'Response',
             'status': list(self.status),
             'raw': self.raw.bin if self.raw is not None else None,
             'reg_data': {k: v.to_json() for k, v in self.reg_data.items()} if self.reg_data is not None else None,
@@ -102,10 +105,15 @@ class Response:
 
     @staticmethod
     def from_json(dic) -> 'Response':
+        assert dic['type'] == 'Response', f"Expected type 'Response' but got '{dic['type']}'"
         return Response(status=set(dic['status']),
                         raw=BitArray(bin=dic['raw']) if dic['raw'] is not None else None,
-                        reg_data={k: Register.from_json(v) for k, v in dic['reg_data'].items()} if dic[
-                                                                                                       'reg_data'] is not None else None)
+                        reg_data=dic['reg_data'])
+
+    def __eq__(self, other):
+        return self.status == other.status \
+            and self.raw == other.raw \
+            and self.reg_data == other.reg_data
 
 
 class ResetRelay:
@@ -284,6 +292,29 @@ def from_json(obj, cls) -> list:
     return cls.from_json(obj)
 
 
+class DatapointEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if 'to_json' in dir(obj):
+            return obj.to_json()
+        return json.JSONEncoder.default(self, obj)
+
+
+class DatapointDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
+
+    @staticmethod
+    def object_hook(obj):
+        from attacks.probing import Datapoint
+        if 'type' in obj:
+            if obj['type'] == 'Response':
+                return Response.from_json(obj)
+            elif obj['type'] == 'Register':
+                return Register.from_json(obj)
+            elif obj['type'] == 'Datapoint':
+                return Datapoint.from_json(obj)
+        return obj
+
 def pickles_to_json(pickles_dir, json_dir):
     # Ensure the output directory exists
     os.makedirs(json_dir, exist_ok=True)
@@ -306,10 +337,10 @@ def pickles_to_json(pickles_dir, json_dir):
                 continue
 
         # Convert object to dictionaries using custom to_json function
-        json_data = to_json(unpickled_obj)
+        json_data = json.dumps(unpickled_obj, cls=DatapointEncoder)
+        # json_data = to_json(unpickled_obj)
 
-        from attacks.probing import Datapoint
-        reconstructed = from_json(json_data, Datapoint)
+        reconstructed = json.loads(json_data, cls=DatapointDecoder)
         assert reconstructed == unpickled_obj
 
         if os.path.exists(json_path):
