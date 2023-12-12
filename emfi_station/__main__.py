@@ -46,7 +46,7 @@ def main():
     parser.add_argument('--world_cam', type=str, nargs='*', default=('0779', '045e', 0),
                         help='The device information of world camera. Format: vendor_id product_id [index]')  # ('0304', 'a16f', 0)
     # Misc:
-    parser.add_argument('--safe_z', type=float, default=86.5,
+    parser.add_argument('--safe_z', type=float, default=83,
                         help='Prevent the stage moving beyond the specified value regardless of the attack parameters')
     parser.add_argument('-v', '--verbosity', default=False, action='store_true', help='Enable info log level')
     args = parser.parse_args()
@@ -71,6 +71,7 @@ def main():
     logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', filename=log_file, level=level, encoding='utf-8')
     # protocol.py logs all websocket messages as DEBUG, which we usually don't need
     logging.getLogger('websockets.server').setLevel(logging.INFO)
+    logging.getLogger().addHandler(logging.StreamHandler())
 
     EMFIStation(config)
 
