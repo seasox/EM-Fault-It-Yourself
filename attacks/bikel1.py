@@ -24,6 +24,9 @@ stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
 
 repetitions = 2 ** 64  # 5223 (SK LENGTH) / 8 (2 registers per transaction)
 
+HAMMING_WEIGHT_MAX_THRESH = 95
+BIKE_SK_LEN_BIT = 5223 * 8
+
 
 class BikeL1(Attack):
     cs: ChipSHOUTER
@@ -41,7 +44,7 @@ class BikeL1(Attack):
 
         # Parameters based on behavior of Device firmware, using BCM pins
         self.reg_size = 4  # in bytes
-        self.regs = 8
+        self.regs = ["r10", "r11"]
         self.miso_pin = 9
         self.mosi_pin = 10
         self.clk_pin = 11
@@ -49,7 +52,6 @@ class BikeL1(Attack):
         self.dut_prep_time = .01  # in seconds
 
         self.hamming_weight = 0
-
         self.sk = BitArray()
 
         # The end sequence acts like a "checksum", if it is not transferred correctly, we cant be sure about the results
@@ -59,6 +61,7 @@ class BikeL1(Attack):
 
         GPIO.setmode(GPIO.BCM)  # This is needed as adafruit uses BCM Mode
         GPIO.setup(self.miso_pin, GPIO.IN)
+        GPIO.setup(self.mosi_pin, GPIO.OUT)
 
         self.reset = ResetRelay(self.reset_pin)
         self.device = Comm(reset=self.reset,
@@ -69,10 +72,6 @@ class BikeL1(Attack):
                            fault_window_start_seq=self.fault_window_start_seq,
                            fault_window_end_seq=self.fault_window_end_seq,
                            reg_data_expected=None)
-
-        # Other parameters, watch out that dz is 0 if only one layer is attacked!
-        self.dx, self.dy, self.dz = ((np.array(self.end_pos) - self.start_pos) / self.step_size)
-
     @staticmethod
     def name() -> str:
         return f"BIKEL1 ({stm32f4_start} => {stm32f4_end}, {repetitions})"
@@ -107,7 +106,11 @@ class BikeL1(Attack):
         time_taken = self.device.wait_fault_window_end()
         self.log.info(f"Waiting for fault window end took {time_taken} seconds")
         if time_taken < 0:  # a timeout, we cannot say anything about the device's state!
-            self.response_after_fault = Response({STATUS.FAULT_WINDOW_TIMEOUT}, None, None)
+            self.log.info('Did not find start sequence, resetting')
+            self.hamming_weight = 0
+            self.sk = BitArray()
+            self.reset.reset()
+            return False
         else:  # we know the device sent the fault window end sequence
             # wait for DUT to arrive at transfer()
             time.sleep(self.dut_prep_time)
@@ -119,22 +122,30 @@ class BikeL1(Attack):
             _data = self.device.read(self.end_seq.len // 8)
             # make sure the end sequence was received
             if _data != self.end_seq:
-                self.response_after_fault.status.add(STATUS.END_SEQUENCE_NOT_FOUND)
+                self.log.info('Did not find end sequence, resetting')
+                self.hamming_weight = 0
+                self.sk = BitArray()
+                self.reset.reset()
+                return False
             self.hamming_weight += sum([reg.hamming_weight() for reg in self.response_after_fault.reg_data.values()])
             for reg in [reg.data for reg in self.response_after_fault.reg_data]:
                 self.sk.append(reg)  # TODO check order
-            self.log.info('hamming weight so far: %d', self.hamming_weight)
-            HAMMING_WEIGHT_THRESH = 63
-            BIKE_SK_LEN_BIT = 5223 * 8
-            if self.hamming_weight > HAMMING_WEIGHT_THRESH:
+
+            self.log.info('Hamming weight so far: %d', self.hamming_weight)
+
+            if self.hamming_weight > HAMMING_WEIGHT_MAX_THRESH:
+                GPIO.output(self.mosi_pin, 0)  # set control pin low, now we stop faulting
                 self.log.info('We now have a faulty key! GZ Abgabe ez 1.0')
-                return True
-            if len(self.sk) == BIKE_SK_LEN_BIT:
                 self.shutdown()
+                exit(0)
+            if len(self.sk) >= BIKE_SK_LEN_BIT:
+                self.log.info('Finished, final hamming weight: %d', self.hamming_weight)
+                self.shutdown()
+                return True
         return False
 
     def reset_target(self) -> None:
-        self.reset.reset()
+        return  # else, the device is reset after each rep
 
     def critical_check(self) -> bool:
         return True

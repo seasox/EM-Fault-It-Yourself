@@ -165,7 +165,7 @@ class Marlin:
         :return: None
         """
         if z is not None and not self.is_safe_height(z):
-            self.log.critical('Moving to this position {:s} is not safe. Aborting.'.format(str((x, y, z))))
+            self.log.critical(f'Moving to this position is not safe: {z} > {self.safe_z}')
             return
         cmd = 'G0 F{:f}'.format(feed_rate * 60)
         if x is not None:
@@ -185,21 +185,22 @@ class Marlin:
             except SerialException or PortNotOpenError:
                 self.home(x=True, y=True, z=True, force_homing=False)
 
-    def relative_move(self, x: Optional[float] = None, y: Optional[float] = None, z: Optional[float] = None,
+    def relative_move(self, dx: Optional[float] = None, dy: Optional[float] = None, dz: Optional[float] = None,
                       feed_rate: float = 5) -> None:
         """
         Moves relative to current position.
-        :param x: Distance on X axis (+/-).
-        :param y: Distance on Y axis (+/-).
-        :param z: Distance on Z axis (+/-).
+        :param dx: Distance on X axis (+/-).
+        :param dy: Distance on Y axis (+/-).
+        :param dz: Distance on Z axis (+/-).
         :param feed_rate: Speed in mm/s.
         :return: None
         """
-        pos = self.get_position()
-        if not self.is_safe_height(pos[2] + z):
-            self.log.critical('Moving to this position is not safe. Aborting.')
+        x, y, z = self.get_position()
+        if not self.is_safe_height(z + dz):
+            self.log.critical(f'Moving to this position is not safe: {z + dz} > {self.safe_z}')
+            return
         self.relative_mode(True)
-        self.move(x, y, z, feed_rate)
+        self.move(dx, dy, dz, feed_rate)
         self.relative_mode(False)
 
     def relative_mode(self, enable: bool) -> None:
