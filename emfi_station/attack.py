@@ -16,6 +16,8 @@
 
 import logging
 import abc
+from typing import Optional
+
 
 class Attack:
     @abc.abstractmethod
@@ -25,19 +27,20 @@ class Attack:
     """
     Base class for the attack implementations.
     """
-    def __init__(self, start_pos: tuple[float, float, float], end_pos: tuple[float, float, float], step_size: float,
+    def __init__(self, start_pos: tuple[float, float, float], end_pos: tuple[float, float, float], step_size: Optional[float] = None,
             max_target_temp: float = 40, cooling: float = 0, repetitions: int = 0):
         """
         Initializes attack settings and attack hardware.
-        :param start_pos: Start position of attack.
-        :param end_pos: End positions of attack.
-        :param step_size: End positions of attack.
+        :param start_pos: Start position of attack in units.
+        :param end_pos: End positions of attack in units.
+        :param step_size: The step size in units
         :param max_target_temp: Maximum target temperature before attack is paused.
         :param cooling: Target cooling fan speed (0-1)
+        :param repetitions: The number of times we fault at each step
         """
         self.log = logging.getLogger(__name__)
-        self.start_pos = start_pos or [0, 0, 0]
-        self.end_pos = end_pos or [0, 0, 0]
+        self.start_pos = start_pos
+        self.end_pos = end_pos
         self.step_size = step_size or 1
         self.max_target_temp = max_target_temp
         self.cooling = cooling
@@ -56,10 +59,10 @@ class Attack:
         return None
 
     @abc.abstractmethod
-    def shout(self) -> None:
+    def shout(self) -> bool:
         """
         Shout procedure.
-        :return: None
+        :return: True if fault setup was successful, False otherwise
         """
         return None
 

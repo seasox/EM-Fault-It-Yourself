@@ -3,6 +3,9 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List, Dict
+import pickle
+import json
+import os
 
 from bitstring import BitArray
 from typing_extensions import Literal
@@ -21,7 +24,7 @@ class Register:
     data_int: Optional[int] = field(init=False, default=None, repr=False)
     data_float: Optional[float] = field(init=False, default=None, repr=False)
 
-    def to_json(self) -> dict[str, str | int]:
+    def to_json(self) -> dict[str, Literal["little", "big"] | bool | None | str | int]:
         return {
             'type': 'Register',  # this is needed for the from_json method to work
             'name': self.name,
@@ -142,12 +145,15 @@ class Comm:
     def __init__(self,
                  reset: ResetRelay,
                  miso_pin: int,
+                 mosi_pin: int,
                  clk_pin: int,
                  regs: int | List[str],
                  reg_size: int | List[int],
                  fault_window_start_seq: BitArray,
                  fault_window_end_seq: BitArray,
-                 reg_data_expected: Optional[List[int]]):
+                 reg_data_expected: Optional[List[int]],
+                 wait_start_seq_time: float = 5,
+                 wait_end_seq_time: float = 3):
         import RPi.GPIO as GPIO
 
         self.reset = reset
@@ -156,12 +162,13 @@ class Comm:
 
         # Config pins
         self.miso_pin = miso_pin
+        self.mosi_pin = mosi_pin
         self.clk_pin = clk_pin
 
         GPIO.setmode(GPIO.BCM)  # This is needed as adafruit uses BCM Mode
         GPIO.setup(self.miso_pin, GPIO.IN)
-        GPIO.setup(self.clk_pin, GPIO.OUT)
 
+        GPIO.setup(self.clk_pin, GPIO.OUT)
         GPIO.output(self.clk_pin, 1)  # init clock to high
 
         # init device specific config
@@ -187,9 +194,9 @@ class Comm:
         self.__low_time = .001
         self.__high_time = .001
         # the maximum time we wait for the device. Make sure to sync with the fault window from the DUT!
-        self.__wait_end_seq_time = 3
+        self.__wait_end_seq_time = wait_end_seq_time
         # we should not wait here anyway
-        self.__wait_start_seq_time = 5
+        self.__wait_start_seq_time = wait_start_seq_time
 
         self.reset.reset()
 
@@ -270,11 +277,6 @@ class Comm:
         return Response(status, _buffer_cp, _fetch_registers())
 
 
-import pickle
-import json
-import os
-
-
 def to_json(obj):
     # Define your custom to_json function here
     # This function should convert the unpickled object to dictionaries
@@ -314,6 +316,7 @@ class DatapointDecoder(json.JSONDecoder):
             elif obj['type'] == 'Datapoint':
                 return Datapoint.from_json(obj)
         return obj
+
 
 def pickles_to_json(pickles_dir, json_dir):
     # Ensure the output directory exists

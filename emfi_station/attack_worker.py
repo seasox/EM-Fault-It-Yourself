@@ -96,8 +96,8 @@ class AttackWorker:
                         break
                     self.progress = (i * self.attack.repetitions + j) / (len(positions) * self.attack.repetitions)
                     self.attack.reset_target()
-                    self.attack.shout()
-                    if self.attack.was_successful():
+                    setup_success = self.attack.shout()
+                    if setup_success and self.attack.was_successful():
                         self.log.critical('Successful at ' + str(pos))
                         self.a_log.log('Successful at ' + str(pos))
                     else:
@@ -127,7 +127,7 @@ class AttackWorker:
         Homes each axis and moves to the first attack position.
         :return: None
         """
-        self.marlin.home(x=True, y=True, z=True, force_homing=True)
+        self.marlin.home(x=True, y=True, z=True, force_homing=False)
         self.marlin.move(x=self.attack.start_pos[0])
         self.marlin.move(y=self.attack.start_pos[1])
         self.marlin.move(z=self.attack.start_pos[2])

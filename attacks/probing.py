@@ -181,6 +181,7 @@ class Probing(Attack):
         self.reg_size = 4  # in bytes
         self.regs = 8
         self.miso_pin = 9
+        self.mosi_pin = 10
         self.clk_pin = 11
         self.reset_pin = 0
         self.dut_prep_time = .01  # in seconds
@@ -201,6 +202,7 @@ class Probing(Attack):
         self.reset = ResetRelay(reset_pin=self.reset_pin)
         self.device = Comm(reset=self.reset,
                            miso_pin=self.miso_pin,
+                           mosi_pin=self.mosi_pin,
                            clk_pin=self.clk_pin,
                            regs=self.regs,
                            reg_size=self.reg_size,
@@ -231,7 +233,7 @@ class Probing(Attack):
         self.cs.voltage = 500
         self.cs.pulse.repeat = 5
 
-    def shout(self) -> None:
+    def shout(self) -> bool:
         time_taken = self.device.wait_fault_window_start()
         if time_taken < 0:
             self.response_before_fault.status.add(STATUS.RESET_UNSUCCESSFUL)
@@ -248,7 +250,7 @@ class Probing(Attack):
                 time.sleep(5)
                 self.cs.connect()
                 continue
-            return
+            return True
 
     def was_successful(self) -> bool:
         time_taken = self.device.wait_fault_window_end()
