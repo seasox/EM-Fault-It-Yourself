@@ -21,9 +21,6 @@ BIKE_H0_LEN_BIT = BIKE_H0_LEN_BYTE * 8
 BIKE_H0_PADDED = 2048
 BIKE_H0_PADDED_BIT = BIKE_H0_PADDED * 8
 
-SK_FULL_SIZE = 5223
-
-
 class BikeL1(Attack):
     cs: ChipSHOUTER
 
@@ -162,7 +159,12 @@ class BikeL1(Attack):
 
         # read full H0, H1 key
         time.sleep(5)  # really make sure DUT arrives at transfer()
-        _data = self.device.read(SK_FULL_SIZE)  # read key
+        _data = self.device.read(2*BIKE_H0_LEN_BYTE)  # read h0, h1
+
+        # we send fault window end sequence after transfer
+        time_taken = self.device.wait_fault_window_end()
+        if time_taken < 0:  # make sure the end sequence was received
+            self.log.critical('Did not find end sequence after key transfer')
 
         result_dict = {
             "is_faulty": self.is_faulty,
