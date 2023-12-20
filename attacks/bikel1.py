@@ -1,6 +1,8 @@
 import json
 import time
+from pathlib import Path
 
+import numpy
 from RPi import GPIO
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
@@ -20,6 +22,7 @@ BIKE_H0_LEN_BYTE = 1541
 BIKE_H0_LEN_BIT = BIKE_H0_LEN_BYTE * 8
 BIKE_H0_PADDED = 2048
 BIKE_H0_PADDED_BIT = BIKE_H0_PADDED * 8
+
 
 class BikeL1(Attack):
     cs: ChipSHOUTER
@@ -93,6 +96,7 @@ class BikeL1(Attack):
         if self.is_faulty or len(self.sk) > BIKE_H0_LEN_BIT:
             return True
 
+        return True
         while True:
             try:
                 if not self.cs.armed:
@@ -120,6 +124,8 @@ class BikeL1(Attack):
         # we know the device sent the fault window end sequence
         time.sleep(self.dut_prep_time)  # wait for DUT to arrive at transfer()
         self.response_after_fault = self.device.read_regs()  # read the register values
+        # This is necessary in bike attack, make sure to only use raw from here on
+        self.response_after_fault.raw.byteswap(4)
         time.sleep(self.dut_prep_time)  # wait for DUT to arrive at transfer()
         _data = self.device.read(self.end_seq.len // 8)  # read end sequence
         if _data != self.end_seq:  # make sure the end sequence was received
@@ -128,13 +134,12 @@ class BikeL1(Attack):
             return False
 
         if len(self.sk) <= BIKE_H0_LEN_BIT:
-            self.hw_h0 += sum([reg.hamming_weight() for reg in self.response_after_fault.reg_data.values()])
+            self.hw_h0 += self.response_after_fault.raw.bin.count("1")
         else:
             GPIO.output(self.mosi_pin, 0)  # set control pin low, now the DUT does not wait for fault
 
-        for reg in [reg.data for reg in self.response_after_fault.reg_data.values()]:
-            self.sk.append(reg)  # TODO check order
-
+        self.sk.append(self.response_after_fault.raw)  # TODO check order
+        # print(self.response_after_fault.raw, self.response_after_fault.raw.bin.count("1"))
         self.log.info(
             f'Hamming weight of H0: {self.hw_h0}, Key length: {len(self.sk)}, {"%.02f" % (len(self.sk) / (2 * BIKE_H0_PADDED_BIT))} done')
 
@@ -159,7 +164,7 @@ class BikeL1(Attack):
 
         # read full H0, H1 key
         time.sleep(5)  # really make sure DUT arrives at transfer()
-        _data = self.device.read(2*BIKE_H0_LEN_BYTE)  # read h0, h1
+        _data = self.device.read(2 * BIKE_H0_LEN_BYTE)  # read h0, h1
 
         # we send fault window end sequence after transfer
         time_taken = self.device.wait_fault_window_end()
@@ -204,5 +209,28 @@ class BikeL1(Attack):
         print("End...")
 
 
+def parse_fault_result(sk: dict):
+    h0_actual = sk["sk"][:BIKE_H0_LEN_BIT]
+    # remove padding
+    data = sk["data"]
+    h0_expected = data[:BIKE_H0_LEN_BIT]
+
+    hw_actual = h0_actual.count("1")
+    hw_0expected = h0_expected.count("1")
+
+    ba_actual = BitArray(bin=h0_actual)
+
+    ba_0expected = BitArray(bin=h0_expected)
+    ba_0expected.byteswap(8)
+
+    print(ba_actual.bin)
+    print(ba_0expected.bin)
+    print(ba_actual.bin == ba_0expected.bin)
+    print(hw_actual, hw_0expected)
+
+
 if __name__ == '__main__':
-    BikeL1()
+    root = Path(__file__).parent.parent
+    with open(root.joinpath("sk.json"), "r") as fh:
+        sk = json.load(fh)
+        parse_fault_result(sk)
