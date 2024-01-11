@@ -2,7 +2,6 @@ import json
 import time
 from pathlib import Path
 
-import numpy
 from RPi import GPIO
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
@@ -96,7 +95,6 @@ class BikeL1(Attack):
         if self.is_faulty or len(self.sk) > BIKE_H0_LEN_BIT:
             return True
 
-        return True
         while True:
             try:
                 if not self.cs.armed:
@@ -126,6 +124,7 @@ class BikeL1(Attack):
         self.response_after_fault = self.device.read_regs()  # read the register values
         # This is necessary in bike attack, make sure to only use raw from here on
         self.response_after_fault.raw.byteswap(4)
+        self.log.info(f"Read register values: {self.response_after_fault.raw.bin}")
         time.sleep(self.dut_prep_time)  # wait for DUT to arrive at transfer()
         _data = self.device.read(self.end_seq.len // 8)  # read end sequence
         if _data != self.end_seq:  # make sure the end sequence was received
@@ -136,6 +135,7 @@ class BikeL1(Attack):
         if len(self.sk) <= BIKE_H0_LEN_BIT:
             self.hw_h0 += self.response_after_fault.raw.bin.count("1")
         else:
+            self.log.info('H0 is done, stop shouting')
             GPIO.output(self.mosi_pin, 0)  # set control pin low, now the DUT does not wait for fault
 
         self.sk.append(self.response_after_fault.raw)  # TODO check order
@@ -179,7 +179,8 @@ class BikeL1(Attack):
         }
         self.log.critical(str(result_dict))
 
-        with open("sk.json", "w+") as fh:
+        from datetime import datetime
+        with open(f"sk_{datetime.now().isoformat()}.json", "w+") as fh:
             json.dump(result_dict, fh)
 
         if not self.is_faulty:
@@ -189,12 +190,13 @@ class BikeL1(Attack):
 
         self.clear_target_state()
 
-        return self.is_faulty
+        return self.is_faulty  # TODO this always returns False
 
     def clear_target_state(self):
         self.is_faulty = False
         self.hw_h0 = 0
         self.sk = BitArray()
+        GPIO.output(self.mosi_pin, 1)
         self.reset.reset()
 
     def reset_target(self) -> None:
@@ -223,14 +225,14 @@ def parse_fault_result(sk: dict):
     ba_0expected = BitArray(bin=h0_expected)
     ba_0expected.byteswap(8)
 
-    print(ba_actual.bin)
-    print(ba_0expected.bin)
+    print(f'actual (regs): {ba_actual.bin}')
+    print(f'expected (sk): {ba_0expected.bin}')
     print(ba_actual.bin == ba_0expected.bin)
     print(hw_actual, hw_0expected)
 
 
 if __name__ == '__main__':
     root = Path(__file__).parent.parent
-    with open(root.joinpath("sk.json"), "r") as fh:
+    with open(root.joinpath("sk_2023-12-20T22:30:51.720778.json"), "r") as fh:
         sk = json.load(fh)
         parse_fault_result(sk)
