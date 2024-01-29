@@ -1,7 +1,8 @@
-import pickle
+import json
 import sys
 from typing import Optional, Dict, Any
 
+from Comm import DatapointDecoder
 from attacks.probing import Datapoint
 from attacks.probing import Metric
 
@@ -38,7 +39,7 @@ def main():
         def success_rate_cb(values):
             return len(list(filter(lambda p: p > 0, values))) / len(values) if len(values) > 0 else 0
 
-        dps: [Datapoint] = pickle.load(fp)  # TODO implement JSON import/export. Pickles are kinda slow
+        dps: [Datapoint] = json.load(fp, cls=DatapointDecoder)
         make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'), Metric.AnyFlipAnywhere, "Max Score", max_cb)
         make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[Flips > 0]",
                      success_rate_cb)

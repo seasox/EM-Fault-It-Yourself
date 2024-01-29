@@ -1,3 +1,5 @@
+import time
+
 from RPi import GPIO
 
 
@@ -7,6 +9,8 @@ def main():
     RELAY_STATE_OFF = 1
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(reset_pin, GPIO.OUT)
+    GPIO.output(reset_pin, RELAY_STATE_OFF)
+    time.sleep(5)
     GPIO.output(reset_pin, RELAY_STATE_ON)
 
 

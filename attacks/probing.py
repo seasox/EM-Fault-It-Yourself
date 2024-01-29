@@ -1,5 +1,4 @@
 import json
-import os
 import time
 import typing
 from dataclasses import dataclass, field
@@ -10,6 +9,7 @@ from typing import Tuple, Dict, List, Set
 import numpy as np
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
+from datetime import datetime
 
 from Comm import Comm, Register, Response, STATUS, ResetRelay, DatapointEncoder
 from emfi_station import Attack
@@ -137,10 +137,7 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
                 return -1
             return sum([dp.get_01_flips(reg_name) for reg_name in ['r4', 'r5']])
         case Metric.ResetUnsuccessful:
-            if STATUS.RESET_UNSUCCESSFUL in dp.response_before_fault.status:
-                return 1
-            return 0
-
+            return STATUS.RESET_UNSUCCESSFUL in dp.response_before_fault.status
 
 
 # chip dimensions: 9x9 mm
@@ -159,7 +156,7 @@ stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
 stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
 stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
 
-repetitions = 1000
+repetitions = 100
 
 
 class Probing(Attack):
@@ -234,8 +231,10 @@ class Probing(Attack):
         self.cs.pulse.repeat = 5
 
     def shout(self) -> bool:
+        self.log.info("Waiting for start sequence...")
         time_taken = self.device.wait_fault_window_start()
         if time_taken < 0:
+            self.log.info("Did not find start sequence")
             self.response_before_fault.status.add(STATUS.RESET_UNSUCCESSFUL)
         while True:
             try:
@@ -256,6 +255,7 @@ class Probing(Attack):
         time_taken = self.device.wait_fault_window_end()
         self.log.info(f"Waiting for fault window end took {time_taken} seconds")
         if time_taken < 0:  # a timeout, we cannot say anything about the device's state!
+            self.log.info('Did not find fault window end sequence')
             self.response_after_fault = Response({STATUS.FAULT_WINDOW_TIMEOUT}, None, None)
         else:  # we know the device sent the fault window end sequence
             # wait for DUT to arrive at transfer()
@@ -297,20 +297,13 @@ class Probing(Attack):
         return True
 
     def shutdown(self) -> None:
-        from datetime import datetime
         timestamp = datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
-        _dir = Path("dp_json")
-        if not _dir.exists():
-            os.makedirs(_dir)
+        dp_dir = Path("dp_json")
+        dp_dir.mkdir(parents=True, exist_ok=True)
         filename = f"data_{timestamp}.json"
-        filepath = _dir.joinpath(filename)
-        self.log.debug(f'writing progress to JSON due to shutdown')
-        with open(filepath, "w") as fp:
+        filepath = dp_dir.joinpath(filename)
+        self.log.info(f'writing progress to JSON due to shutdown')
+        with open(filepath, "w+") as fp:
             json.dump(self.dps, fp, cls=DatapointEncoder)
         self.cs.armed = 0
         self.reset.reset()
-        print("End...")
-
-
-if __name__ == '__main__':
-    Probing()
