@@ -22,7 +22,7 @@ asm(
     "num_iters:                 .word " NUM_ITERS "\n" // TODO change according to clk rate
     "register_value:            .word 0xaaaaaaaa\n"
     "end_seq:                   .byte 0x42, 0x42, 0x42, 0x42\n"
-    "fault_window_start_seq:    .byte 42, 42, 42, 42\n"
+    "fault_window_start_seq:    .byte 0x2A, 0x2A, 0x2A, 0x2A\n"
     "fault_window_end_seq:      .byte 0x13, 0x37, 0x13, 0x37\n"
 );
 
