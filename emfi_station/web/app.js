@@ -46,7 +46,7 @@ const app = Vue.createApp({
                 safeZ: 100,
             },
             stream: 'cam_loading.svg',
-            cam: 'thermal'
+            cam: 'world'
         }
     },
     methods: {
