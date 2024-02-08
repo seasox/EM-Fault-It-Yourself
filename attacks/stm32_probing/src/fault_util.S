@@ -7,11 +7,15 @@
 
 
 .section .data
-    num_iters:               .word 0xC80000 // (1 secs * 168 MHz)/(4 [cycles per iteration]) = 4.2 * 10**7 (# of loop iterations)
     register_value:          .word 0xaaaaaaaa
     end_seq:                 .byte 0x42, 0x42, 0x42, 0x42
     fault_window_start_seq:  .byte 42, 42, 42, 42
     fault_window_end_seq:    .byte 0x13, 0x37, 0x13, 0x37
+#ifdef STM32F4 // Defined when compiling with pio
+    num_iters:               .word 0xC80000 // (1 secs * 168 MHz)/(4 [cycles per iteration]) = 4.2 * 10**7 (# of loop iterations)
+#else
+    #error "Please specify the number of cycles to wait for your platform"
+#endif
 
 
 .section .text

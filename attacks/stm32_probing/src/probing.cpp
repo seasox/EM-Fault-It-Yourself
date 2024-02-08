@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <stdint-gcc.h>
 
-// These are defined when compiling with pio
+// Defined when compiling with pio
 #ifdef STM32L0
 #define SCK_PIN   13
 #define MISO_PIN  12
