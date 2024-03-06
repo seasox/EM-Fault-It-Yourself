@@ -1,13 +1,14 @@
-import pickle
+import json
 import sys
 from typing import Optional, Dict, Any
 
+from attacks.Comm import DatapointDecoder
 from attacks.probing import Datapoint
 from attacks.probing import Metric
 
 
 def usage():
-    print(f"Usage: {sys.argv[0]} $pickle [$board_overlay]")
+    print(f"Usage: {sys.argv[0]} $json [$board_overlay]")
 
 
 def discrete_cmap(N, base_cmap=None):
@@ -31,25 +32,32 @@ def main():
         exit(1)
     fname = sys.argv[1]
     overlay = sys.argv[2] if len(sys.argv) > 2 else None
-    with open(fname, "rb") as fp:
-        def max_cb(values):
-            return max(values or [0])
 
-        def success_rate_cb(values):
-            return len(list(filter(lambda p: p > 0, values))) / len(values) if len(values) > 0 else 0
+    def max_cb(values):
+        return max(values or [0])
 
-        dps: [Datapoint] = pickle.load(fp)  # TODO implement JSON import/export. Pickles are kinda slow
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'), Metric.AnyFlipAnywhere, "Max Score", max_cb)
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[Flips > 0]",
-                     success_rate_cb)
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5, "Zero-To-One on R4 or R5",
-                     success_rate_cb)
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5,
-                     "Max Score for Zero-To-One on R4 or R5",
-                     max_cb)
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.Crash, "Pr[Crash = 1]", success_rate_cb)
-        make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.ResetUnsuccessful, "Reset Unsuccessful",
-                     success_rate_cb)
+    def avg_cb(values):
+        non_crash = [value for value in values if value >= 0] or [0]
+        return sum(non_crash) / len(non_crash) if len(non_crash) > 0 else 0
+
+    def success_rate_cb(values):
+        return len(list(filter(lambda p: p > 0, values))) / len(values) if len(values) > 0 else 0
+
+    with open(fname, "r") as fp:
+        dps: [Datapoint] = json.load(fp, cls=DatapointDecoder)
+    make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'),
+                 Metric.AnyFlipAnywhere, "Any Flip Anywhere Average Score", avg_cb)
+    # make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[Flips > 0]",
+    #             success_rate_cb)
+    make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'),
+                 Metric.ZeroOneFlipOnR4OrR5, "Zero-To-One on R4 or R5", avg_cb)
+    # make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5,
+    #             "Max Score for Zero-To-One on R4 or R5",
+    #             max_cb)
+    make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'),
+                 Metric.Crash, "Pr[Crash = 1]", success_rate_cb)
+    # make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.ResetUnsuccessful, "Reset Unsuccessful",
+    #             success_rate_cb)
 
 
 def make_heatmap(dps: [[[Datapoint]]], overlay, cmap, metric, title, callback):
@@ -67,7 +75,7 @@ def make_heatmap(dps: [[[Datapoint]]], overlay, cmap, metric, title, callback):
                 values = [evaluate(d, metric) for d in dps[x][y][z]]
                 perf[y][x] = callback(values)
         vis["perf"] = perf
-        vis["title"] = f"{title}; {metric}; Z={dps[0][0][z][0].attack_location[2]}"
+        vis["title"] = None  # f"{title}; {metric}; Z={dps[0][0][z][0].attack_location[2]}"
         perf_xy_planes.append(vis)
     for plane in perf_xy_planes:
         visualize(plane, overlay, cmap)
@@ -85,7 +93,8 @@ def visualize(vis: Dict[str, Any], overlay: Optional[str], cmap):
         ax.imshow(im, extent=[-1, matrix.shape[1], -1, matrix.shape[0]])
     heatmap = ax.imshow(matrix, cmap=cmap, alpha=0.5, interpolation='nearest')
     ax.set_aspect('equal')
-    plt.title(vis["title"])
+    if "title" in vis:
+        plt.title(vis["title"])
     fig.colorbar(heatmap)
     plt.show()
 
