@@ -1,11 +1,11 @@
+import json
 import logging
+import os
+import pickle
 import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, List, Dict
-import pickle
-import json
-import os
 
 from bitstring import BitArray
 from typing_extensions import Literal
@@ -351,7 +351,7 @@ def pickles_to_json(pickles_dir, json_dir):
             continue
         # Serialize dictionaries to JSON and write to the corresponding JSON file
         with open(json_path, 'w') as json_file:
-            json.dump(json_data, json_file, indent=2)
+            json.dump(unpickled_obj, json_file, indent=2, cls=DatapointEncoder)
 
 
 if __name__ == "__main__":
