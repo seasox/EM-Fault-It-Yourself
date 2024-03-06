@@ -72,10 +72,10 @@ class Datapoint:
         return data
 
     def get_01_flips(self, reg_name) -> int:
-        return self.reg_diff[reg_name].count(BitFlip.ZERO_TO_ONE)
+        return self.reg_diff[reg_name].count(BitFlip.ZERO_TO_ONE) if reg_name in self.reg_diff else 0
 
     def get_10_flips(self, reg_name) -> int:
-        return self.reg_diff[reg_name].count(BitFlip.ONE_TO_ZERO)
+        return self.reg_diff[reg_name].count(BitFlip.ONE_TO_ZERO) if reg_name in self.reg_diff else 0
 
     def __repr__(self):
         s = ""
@@ -124,16 +124,16 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
     match metric:
         case Metric.AnyFlipAnywhere:
             # a timeout or undefined behavior after fault is not what we expect here
-            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status:  # or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
             return sum([dp.get_01_flips(reg_name) + dp.get_10_flips(reg_name) for reg_name in dp.reg_names])
         case Metric.Crash:
-            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status:  # or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return 1
             return 0
         case Metric.ZeroOneFlipOnR4OrR5:
             # a timeout or undefined behavior after fault is not what we expect here
-            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status:  # or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
             return sum([dp.get_01_flips(reg_name) for reg_name in ['r4', 'r5']])
         case Metric.ResetUnsuccessful:
@@ -150,14 +150,14 @@ stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 
 # chip dimensions: 12x12 mm
 stm32f4_delta = (12, 12, 0)
-stm32f4_start = (99, 60, 80)
-stm32f4_start_offset = (8, 0, 0)
-stm32f4_end_offset = (0, -2, 0)
+stm32f4_start = (105, 62, 82)
+# stm32f4_start_offset = (4, 12, 0)
+# stm32f4_end_offset = (0, -2, 0)
 
+# stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
+# stm32f4_end = stm32f4_start  # for testing purpose, only one destination
 stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
-
-stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
-stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
+# stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
 
 repetitions = 1000
 
@@ -168,6 +168,7 @@ class Probing(Attack):
     response_after_fault: Response
 
     def __init__(self):
+        # noinspection PyTypeChecker
         super().__init__(start_pos=stm32f4_start,
                          end_pos=stm32f4_end,
                          step_size=1,
