@@ -233,26 +233,6 @@
         <div class="d-sm-flex justify-content-start mt-5">
             <div class="p-2">
                 <div class="input-group">
-                    <input type="text" class="form-control" v-model="settings.joySpeed">
-                    <span class="input-group-text">Speed (mm/s)</span>
-                </div>
-            </div>
-            <div class="p-2">
-                <div class="input-group">
-                    <input type="text" class="form-control" v-model="settings.joyStep">
-                    <span class="input-group-text">Step (mm)</span>
-                </div>
-            </div>
-            <div class="p-2 d-flex justify-content-end flex-fill">
-                <button class="btn btn-success" @click="toggleJoystick(settings.joySpeed, settings.joyStep)">
-                    {{ state.mode === 'Joystick' ? 'Disable Joystick' : 'Enable Joystick' }}
-                </button>
-            </div>
-        </div>
-
-        <div class="d-sm-flex justify-content-start mt-5">
-            <div class="p-2">
-                <div class="input-group">
                     <input type="text" class="form-control" v-model="settings.safeZ">
                     <span class="input-group-text">Z (mm)</span>
                 </div>
