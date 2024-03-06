@@ -5,6 +5,7 @@ from pathlib import Path
 from RPi import GPIO
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
+from datetime import datetime
 
 from Comm import Response, ResetRelay, Comm
 from emfi_station import Attack
@@ -37,7 +38,7 @@ class BikeL1(Attack):
 
         # Parameters based on behavior of Device firmware, using BCM pins
         self.reg_size = 4  # in bytes
-        self.regs = ["r10", "r11"]
+        self.regs = ["r4", "r5"]
         self.miso_pin = 9
         self.mosi_pin = 10
         self.clk_pin = 11
@@ -77,9 +78,11 @@ class BikeL1(Attack):
 
     def init(self, aw) -> None:
         self.aw = aw
-        self.cs = ChipSHOUTER("/dev/ttyUSB0")
+        self.cs = ChipSHOUTER("/dev/serial/by-id/usb-NewAE_ChipSHOUTER_Serial_NA430KYI-if00-port0")
+
         self.cs.voltage = 500
         self.cs.pulse.repeat = 5
+        self.clear_target_state()
         GPIO.output(self.mosi_pin, 1)  # set control pin high (otherwise no fault window is started)
 
     def shout(self) -> bool:
@@ -90,7 +93,6 @@ class BikeL1(Attack):
             self.clear_target_state()
             return False
         self.log.info(f"Found start sequence in {time_taken} seconds")
-
         # if already faulted or writing inside padding or H1 don't shout
         if self.is_faulty or len(self.sk) > BIKE_H0_LEN_BIT:
             return True
@@ -115,7 +117,7 @@ class BikeL1(Attack):
         self.log.info(f"Waiting for fault window end took {time_taken} seconds")
 
         if time_taken < 0:  # a timeout, we cannot say anything about the device's state!
-            self.log.info('Did not find end sequence, resetting')
+            self.log.info('Did not find fault window end sequence, resetting')
             self.clear_target_state()
             return False
 
@@ -125,12 +127,11 @@ class BikeL1(Attack):
         # This is necessary in bike attack, make sure to only use raw from here on
         self.response_after_fault.raw.byteswap(4)
         self.log.info(f"Read register values: {self.response_after_fault.raw.bin}")
+
         time.sleep(self.dut_prep_time)  # wait for DUT to arrive at transfer()
         _data = self.device.read(self.end_seq.len // 8)  # read end sequence
         if _data != self.end_seq:  # make sure the end sequence was received
-            self.log.info('Did not find end sequence, resetting')
-            self.clear_target_state()
-            return False
+            self.log.info('Did not find end sequence, not resetting anyways')
 
         if len(self.sk) <= BIKE_H0_LEN_BIT:
             self.hw_h0 += self.response_after_fault.raw.bin.count("1")
@@ -139,7 +140,7 @@ class BikeL1(Attack):
             GPIO.output(self.mosi_pin, 0)  # set control pin low, now the DUT does not wait for fault
 
         self.sk.append(self.response_after_fault.raw)  # TODO check order
-        # print(self.response_after_fault.raw, self.response_after_fault.raw.bin.count("1"))
+
         self.log.info(
             f'Hamming weight of H0: {self.hw_h0}, Key length: {len(self.sk)}, {"%.02f" % (len(self.sk) / (2 * BIKE_H0_PADDED_BIT))} done')
 
@@ -171,15 +172,21 @@ class BikeL1(Attack):
         if time_taken < 0:  # make sure the end sequence was received
             self.log.critical('Did not find end sequence after key transfer')
 
+        transmission_correct = compare_with_stack_key(self.sk, _data)
+
+        if transmission_correct:
+            self.log.info("Register key part match key in stack!")
+        else:
+            self.log.critical("Register key part does not match key in stack")
+
         result_dict = {
+            "transmission_correct": transmission_correct,
             "is_faulty": self.is_faulty,
             "hw_h0": self.hw_h0,
-            "sk": self.sk.bin,
-            "data": _data.bin,
+            "register_key": self.sk.bin,
+            "stack_key": _data.bin,
         }
-        self.log.critical(str(result_dict))
 
-        from datetime import datetime
         with open(f"sk_{datetime.now().isoformat()}.json", "w+") as fh:
             json.dump(result_dict, fh)
 
@@ -187,17 +194,24 @@ class BikeL1(Attack):
             self.log.info('Finished this iteration without a faulty key :(')
         else:
             self.log.info('Finished this iteration with faulty key GG ez 1.0')
+            self.shutdown()
+            exit(0)
 
         self.clear_target_state()
 
-        return self.is_faulty  # TODO this always returns False
+        return False
 
     def clear_target_state(self):
+        self.log.info("Clearing target state")
         self.is_faulty = False
         self.hw_h0 = 0
         self.sk = BitArray()
         GPIO.output(self.mosi_pin, 1)
         self.reset.reset()
+        self.cs.disconnect()
+        time.sleep(5)
+        self.cs.connect()
+        time.sleep(5)
 
     def reset_target(self) -> None:
         return  # else, the device is reset after each rep
@@ -208,31 +222,22 @@ class BikeL1(Attack):
     def shutdown(self) -> None:
         self.cs.armed = 0
         self.reset.reset()
-        print("End...")
+        self.log.info("End...")
 
 
-def parse_fault_result(sk: dict):
-    h0_actual = sk["sk"][:BIKE_H0_LEN_BIT]
-    # remove padding
-    data = sk["data"]
-    h0_expected = data[:BIKE_H0_LEN_BIT]
-
-    hw_actual = h0_actual.count("1")
-    hw_0expected = h0_expected.count("1")
-
-    ba_actual = BitArray(bin=h0_actual)
-
-    ba_0expected = BitArray(bin=h0_expected)
-    ba_0expected.byteswap(8)
-
-    print(f'actual (regs): {ba_actual.bin}')
-    print(f'expected (sk): {ba_0expected.bin}')
-    print(ba_actual.bin == ba_0expected.bin)
-    print(hw_actual, hw_0expected)
+def compare_with_stack_key(register_key: BitArray, stack_key: BitArray) -> bool:
+    # FIXME when faulting, stack key contains garbage (that repeats in a pattern). h0_register contains the correct key, thus we can ignore it for now.
+    # FIXME Maybe we do not clean up correctly in delay some time.
+    h0_stack = stack_key[:BIKE_H0_LEN_BIT]
+    h0_register = register_key[:BIKE_H0_LEN_BIT]
+    h0_register.byteswap(4)
+    print(str(stack_key.hex))
+    return h0_register.bin == h0_stack.bin
 
 
 if __name__ == '__main__':
     root = Path(__file__).parent.parent
-    with open(root.joinpath("sk_2023-12-20T22:30:51.720778.json"), "r") as fh:
-        sk = json.load(fh)
-        parse_fault_result(sk)
+    with open(root.joinpath("sk_2024-01-29T12:38:03.899731.json"), "r") as fh:
+        d = json.load(fh)
+        equal = compare_with_stack_key(BitArray(bin=d["register_key"]), BitArray(bin=d["stack_key"]))
+        print(equal)
