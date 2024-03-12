@@ -2,6 +2,7 @@ import json
 import time
 import typing
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum, auto, IntEnum
 from pathlib import Path
 from typing import Tuple, Dict, List, Set
@@ -9,7 +10,6 @@ from typing import Tuple, Dict, List, Set
 import numpy as np
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
-from datetime import datetime
 
 from Comm import Comm, Register, Response, STATUS, ResetRelay, DatapointEncoder
 from emfi_station import Attack
@@ -145,8 +145,8 @@ stm32l0_delta = (2, 5, 0)
 stm32l0_start = (110, 62, 83)
 stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 
-# chip dimensions: 12x12 mm
-stm32f4_delta = (12, 12, 0)
+# chip dimensions: 11x11 mm
+stm32f4_delta = (11, 11, 0)
 stm32f4_start = (105, 62, 82)
 # stm32f4_start_offset = (4, 12, 0)
 # stm32f4_end_offset = (0, -2, 0)
@@ -189,13 +189,13 @@ class Probing(Attack):
         self.fault_window_start_seq = BitArray(bytes=b"\x2a\x2a\x2a\x2a")
         self.fault_window_end_seq = BitArray(bytes=b"\x13\x37\x13\x37")
         # each register sends a number that distributes 0/1 evenly. r7 is used as a round counter
-        self.expected_data = [0xaaaaaaaa,
-                              0xaaaaaaaa,
-                              0xaaaaaaaa,
-                              0xaaaaaaaa,
-                              0xaaaaaaaa,
-                              0xaaaaaaaa,
-                              0xaaaaaaaa,
+        self.expected_data = [0x00000000,
+                              0x00000000,
+                              0x00000000,
+                              0x00000000,
+                              0x00000000,
+                              0x00000000,
+                              0x00000000,
                               0]
         self.reset = ResetRelay(reset_pin=self.reset_pin)
         self.device = Comm(reset=self.reset,

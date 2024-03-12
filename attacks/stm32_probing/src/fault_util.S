@@ -7,7 +7,7 @@
 
 
 .section .data
-    register_value:          .word 0xaaaaaaaa
+    register_value:          .word 0x00000000
     end_seq:                 .byte 0x42, 0x42, 0x42, 0x42
     fault_window_start_seq:  .byte 42, 42, 42, 42
     fault_window_end_seq:    .byte 0x13, 0x37, 0x13, 0x37
