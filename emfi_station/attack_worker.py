@@ -108,7 +108,9 @@ class AttackWorker:
                     while not self.__check_temp():
                         time.sleep(5)
         finally:
-            self.attack.shutdown()
+            if self.running:
+                # if the attack was stopped (using stop()), attack shutdown has already been called
+                self.attack.shutdown()
             self.marlin.set_fan_speed(0)
             self.a_log.log('Stopping attack...')
             self.a_log.close()
