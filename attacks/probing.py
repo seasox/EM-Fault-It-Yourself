@@ -147,7 +147,7 @@ stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 
 # chip dimensions: 11x11 mm
 stm32f4_delta = (11, 11, 0)
-stm32f4_start = (105, 62, 82)
+stm32f4_start = (105, 60, 80.5)
 # stm32f4_start_offset = (4, 12, 0)
 # stm32f4_end_offset = (0, -2, 0)
 
@@ -228,8 +228,8 @@ class Probing(Attack):
     def init(self, aw) -> None:
         self.aw = aw
         self.cs = ChipSHOUTER("/dev/ttyUSB0")
-        self.cs.voltage = 500
-        self.cs.pulse.repeat = 5
+        self.cs.voltage = 150
+        self.cs.pulse.repeat = 3
 
     def shout(self) -> bool:
         self.log.info("Waiting for start sequence...")
@@ -305,6 +305,19 @@ class Probing(Attack):
         filepath = dp_dir.joinpath(filename)
         self.log.info(f'writing progress to JSON due to shutdown')
         with open(filepath, "w+") as fp:
-            json.dump(self.dps, fp, cls=DatapointEncoder)
+            try:
+                d = {
+                    "datapoints": self.dps,
+                    "settings": {
+                        "cs": {
+                            "voltage": self.cs.voltage.set,
+                            "pulse_repeat": self.cs.pulse.repeat
+                        },
+                        "expected_data": self.expected_data,
+                    }
+                }
+                json.dump(d, fp, cls=DatapointEncoder)
+            except Exception as e:
+                self.log.error('Error writing progress to JSON: ' + str(e))
         self.cs.armed = 0
         self.reset.reset()
