@@ -44,7 +44,8 @@ def main():
         return len(list(filter(lambda p: p > 0, values))) / len(values) if len(values) > 0 else 0
 
     with open(fname, "r") as fp:
-        dps: [Datapoint] = json.load(fp, cls=DatapointDecoder)
+        experiment: dict[str] = json.load(fp, cls=DatapointDecoder)
+    dps: [[[Datapoint]]] = experiment['datapoints'] if 'datapoints' in experiment else experiment
     make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'),
                  Metric.AnyFlipAnywhere, "Any Flip Anywhere Average Score", avg_cb)
     # make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[Flips > 0]",
@@ -75,7 +76,7 @@ def make_heatmap(dps: [[[Datapoint]]], overlay, cmap, metric, title, callback):
                 values = [evaluate(d, metric) for d in dps[x][y][z]]
                 perf[y][x] = callback(values)
         vis["perf"] = perf
-        vis["title"] = None  # f"{title}; {metric}; Z={dps[0][0][z][0].attack_location[2]}"
+        vis["title"] = f"{title}; {metric}; Z={dps[0][0][z][0].attack_location[2]}"
         perf_xy_planes.append(vis)
     for plane in perf_xy_planes:
         visualize(plane, overlay, cmap)
