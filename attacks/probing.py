@@ -124,16 +124,16 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
     match metric:
         case Metric.AnyFlipAnywhere:
             # a timeout or undefined behavior after fault is not what we expect here
-            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status:  # or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
             return sum([dp.get_01_flips(reg_name) + dp.get_10_flips(reg_name) for reg_name in dp.reg_names])
         case Metric.Crash:
-            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status:  # or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return 1
             return 0
         case Metric.ZeroOneFlipOnR4OrR5:
             # a timeout or undefined behavior after fault is not what we expect here
-            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status:  # or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
             return sum([dp.get_01_flips(reg_name) for reg_name in ['r4', 'r5']])
         case Metric.ResetUnsuccessful:
