@@ -48,8 +48,10 @@ def main():
     dps: [[[Datapoint]]] = experiment['datapoints'] if 'datapoints' in experiment else experiment
     make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'),
                  Metric.AnyFlipAnywhere, "Any Flip Anywhere Average Score", avg_cb)
-    # make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.AnyFlipAnywhere, "Pr[Flips > 0]",
-    #             success_rate_cb)
+    make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5, "Pr[0-1 R4 R5 > 0]",
+                 success_rate_cb)
+    make_heatmap(dps, overlay, discrete_cmap(10, 'Blues'), Metric.ZeroOneFlipOnR4OrR5, "Max(0-1 R4 R5)",
+                 max_cb)
     make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'),
                  Metric.ZeroOneFlipOnR4OrR5, "Zero-To-One on R4 or R5", avg_cb)
     # make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5,
