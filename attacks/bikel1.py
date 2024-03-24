@@ -1,17 +1,20 @@
 import json
 import time
+from datetime import datetime
 from pathlib import Path
 
 from RPi import GPIO
 from bitstring import BitArray
 from chipshouter import ChipSHOUTER
-from datetime import datetime
 
-from Comm import Response, ResetRelay, Comm
+from Comm import Response, ResetRelay, Comm, STATUS
 from emfi_station import Attack
+from emfi_station.utils import add_tuples
 
-# chip dimensions: 12x12 mm
-stm32f4_start = (108, 63, 83)
+# chip dimensions: 11x11 mm
+stm32f4_offset = (9, 2, 0)
+stm32f4_start = (105, 60, 80.5)
+stm32f4_start = add_tuples(stm32f4_start, stm32f4_offset)
 stm32f4_end = stm32f4_start
 repetitions = 2 ** 31
 
@@ -23,6 +26,7 @@ BIKE_H0_LEN_BIT = BIKE_H0_LEN_BYTE * 8
 BIKE_H0_PADDED = 2048
 BIKE_H0_PADDED_BIT = BIKE_H0_PADDED * 8
 
+NUM_SHOUTS = 1
 
 class BikeL1(Attack):
     cs: ChipSHOUTER
@@ -45,10 +49,14 @@ class BikeL1(Attack):
         self.reset_pin = 0
         self.dut_prep_time = .01  # in seconds
 
+        # the experiments to persist to disk
+        self.experiments = []
+
         # the hamming weight of the target registers
         self.hw_h0 = 0
         self.sk = BitArray()
         self.is_faulty = False
+        self.num_shouts = NUM_SHOUTS
 
         # The end sequence acts like a "checksum", if it is not transferred correctly, we cant be sure about the results
         self.end_seq = BitArray(bytes=b"\x42\x42\x42\x42")
@@ -80,8 +88,10 @@ class BikeL1(Attack):
         self.aw = aw
         self.cs = ChipSHOUTER("/dev/serial/by-id/usb-NewAE_ChipSHOUTER_Serial_NA430KYI-if00-port0")
 
-        self.cs.voltage = 500
-        self.cs.pulse.repeat = 5
+        self.cs.voltage = 150
+        self.cs.pulse.repeat = 3
+        self.cs.arm_timeout = 10  # 10 minutes arm timeout
+        self.experiments = []
         self.clear_target_state()
         GPIO.output(self.mosi_pin, 1)  # set control pin high (otherwise no fault window is started)
 
@@ -90,9 +100,13 @@ class BikeL1(Attack):
         time_taken = self.device.wait_fault_window_start()
         if time_taken < 0:
             self.log.info("Did not find start sequence, resetting")
+            self.experiments[-1]['response_before_fault'] = [STATUS.RESET_UNSUCCESSFUL]
             self.clear_target_state()
             return False
         self.log.info(f"Found start sequence in {time_taken} seconds")
+        if not self.num_shouts:
+            GPIO.output(self.mosi_pin, 0)  # set control pin low, now the DUT does not wait for fault
+            return True
         # if already faulted or writing inside padding or H1 don't shout
         if self.is_faulty or len(self.sk) > BIKE_H0_LEN_BIT:
             return True
@@ -103,6 +117,7 @@ class BikeL1(Attack):
                     self.cs.armed = True
                     time.sleep(.5)
                 self.cs.pulse = True
+                self.num_shouts -= 1  # decrement number of shouts
             except Exception as e:
                 self.log.error(e)
                 time.sleep(5)
@@ -118,6 +133,7 @@ class BikeL1(Attack):
 
         if time_taken < 0:  # a timeout, we cannot say anything about the device's state!
             self.log.info('Did not find fault window end sequence, resetting')
+            self.experiments[-1]["response_after_fault"] = [STATUS.FAULT_WINDOW_TIMEOUT]
             self.clear_target_state()
             return False
 
@@ -132,6 +148,7 @@ class BikeL1(Attack):
         _data = self.device.read(self.end_seq.len // 8)  # read end sequence
         if _data != self.end_seq:  # make sure the end sequence was received
             self.log.info('Did not find end sequence, not resetting anyways')
+            self.experiments[-1]['response_after_fault'] = [STATUS.END_SEQUENCE_NOT_FOUND]
 
         if len(self.sk) <= BIKE_H0_LEN_BIT:
             self.hw_h0 += self.response_after_fault.raw.bin.count("1")
@@ -185,17 +202,25 @@ class BikeL1(Attack):
             "hw_h0": self.hw_h0,
             "register_key": self.sk.bin,
             "stack_key": _data.bin,
+            "settings": {
+                "cs": {
+                    "voltage": self.cs.voltage.set,
+                    "pulse_repeat": self.cs.pulse.repeat,
+                }
+            }
         }
 
-        with open(f"sk_{datetime.now().isoformat()}.json", "w+") as fh:
-            json.dump(result_dict, fh)
+        self.experiments[-1].update(result_dict)
 
         if not self.is_faulty:
             self.log.info('Finished this iteration without a faulty key :(')
         else:
-            self.log.info('Finished this iteration with faulty key GG ez 1.0')
-            self.shutdown()
-            exit(0)
+            if transmission_correct:
+                self.log.info('Finished this iteration with faulty key GG ez 1.0')
+                self.shutdown()
+                exit(0)
+            else:
+                self.log.info('Finished this iteration with faulty key but transmission was not correct :(')
 
         self.clear_target_state()
 
@@ -204,14 +229,18 @@ class BikeL1(Attack):
     def clear_target_state(self):
         self.log.info("Clearing target state")
         self.is_faulty = False
+        self.num_shouts = NUM_SHOUTS
         self.hw_h0 = 0
         self.sk = BitArray()
+        self.experiments.append({})
         GPIO.output(self.mosi_pin, 1)
         self.reset.reset()
         self.cs.disconnect()
-        time.sleep(5)
+        time.sleep(2)
         self.cs.connect()
-        time.sleep(5)
+        time.sleep(2)
+        self.log.info(
+            f"ChipSHOUTER settings: {self.cs.voltage.set} V/{self.cs.voltage.measured} V, {self.cs.pulse.repeat} pulses, armed: {self.cs.armed}")
 
     def reset_target(self) -> None:
         return  # else, the device is reset after each rep
@@ -222,6 +251,9 @@ class BikeL1(Attack):
     def shutdown(self) -> None:
         self.cs.armed = 0
         self.reset.reset()
+        path = Path('dp_json', f'bikel1_{datetime.now().isoformat()}.json')  # save the experiments to disk
+        with path.open('w') as f:
+            json.dump(self.experiments, f)
         self.log.info("End...")
 
 
