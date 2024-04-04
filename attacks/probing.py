@@ -143,9 +143,9 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
 
 
 # chip dimensions: 9x9 mm
-stm32l0_delta = (2, 5, 0)
-stm32l0_start = (110, 62, 83)
-stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
+# stm32l0_delta = (2, 5, 0)
+# stm32l0_start = (110, 62, 83)
+# stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 
 # chip dimensions: 11x11 mm
 device_name = "stm32f4discovery"
