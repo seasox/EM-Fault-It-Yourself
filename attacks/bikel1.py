@@ -147,8 +147,10 @@ class BikeL1(Attack):
         time.sleep(self.dut_prep_time)  # wait for DUT to arrive at transfer()
         _data = self.device.read(self.end_seq.len // 8)  # read end sequence
         if _data != self.end_seq:  # make sure the end sequence was received
-            self.log.info('Did not find end sequence, not resetting anyways')
+            self.log.info('Did not find end sequence, resetting')
             self.experiments[-1]['response_after_fault'] = [STATUS.END_SEQUENCE_NOT_FOUND]
+            self.clear_target_state()
+            return False
 
         if len(self.sk) <= BIKE_H0_LEN_BIT:
             self.hw_h0 += self.response_after_fault.raw.bin.count("1")
