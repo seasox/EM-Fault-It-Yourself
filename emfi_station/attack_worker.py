@@ -81,6 +81,9 @@ class AttackWorker:
         self.running = True
         self.a_log.create_file()
         self.a_log.log('Starting attack...')
+        if not self.attack:
+            self.log.critical('No attack loaded.')
+            raise Exception('No attack loaded')
         positions = compute_positions(self.attack.start_pos, self.attack.end_pos, self.attack.step_size)
         self.attack.init(self)
         self.__move_to_start()
@@ -120,6 +123,9 @@ class AttackWorker:
         Stops a running attack.
         :return: None
         """
+        if not self.attack:
+            self.log.critical('No attack loaded.')
+            raise Exception('No attack loaded')
         self.attack.shutdown()
         self.marlin.set_fan_speed(0)
         self.running = False
@@ -129,6 +135,9 @@ class AttackWorker:
         Homes each axis and moves to the first attack position.
         :return: None
         """
+        if not self.attack:
+            self.log.critical('No attack loaded.')
+            raise Exception('No attack loaded')
         self.marlin.home(x=True, y=True, z=True, force_homing=False)
         self.marlin.move(x=self.attack.start_pos[0])
         self.marlin.move(y=self.attack.start_pos[1])
@@ -141,6 +150,9 @@ class AttackWorker:
         Retrieves target temperature and checks if it is too high.
         :return: False if target temperature is too high.
         """
+        if not self.attack:
+            self.log.critical('No attack loaded.')
+            raise Exception('No attack loaded')
         temp = self.thermal_cam.get_last_temperature()
         if self.attack.max_target_temp < temp < self.TEMP_SENSOR_UPPER_BOUND:
             self.log.critical('Target temperature too high: {}'.format(temp))
