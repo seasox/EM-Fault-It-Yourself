@@ -43,7 +43,7 @@ class AttackWorker:
         self.thermal_cam = thermal_cam
         self.running = False
         self.progress = 0
-        self.position = [0, 0, 0]
+        self.position = [0.0, 0.0, 0.0]
         self.a_log = AttackLogger(log_dir)
         self.importer = importer
 
@@ -65,7 +65,7 @@ class AttackWorker:
         """
         return self.progress
 
-    def get_position(self) -> list[float, float, float]:
+    def get_position(self) -> list[float]:
         """
         Returns current position.
         :return: Position [x, y, z].
