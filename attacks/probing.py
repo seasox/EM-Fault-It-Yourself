@@ -148,17 +148,17 @@ stm32l0_start = (110, 62, 83)
 stm32l0_end = add_tuples(stm32l0_start, stm32l0_delta)
 
 # chip dimensions: 11x11 mm
+device_name = "stm32f4discovery"
 stm32f4_delta = (11, 11, 0)
 stm32f4_start = (105, 60, 80.5)
-# stm32f4_start_offset = (4, 12, 0)
-# stm32f4_end_offset = (0, -2, 0)
+stm32f4_start_offset = (7, 0, 0)
+stm32f4_end_offset = (0, -8, 0)
 
-# stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
-# stm32f4_end = stm32f4_start  # for testing purpose, only one destination
 stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
-# stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
+stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
+stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
 
-repetitions = 100
+repetitions = 1000
 
 
 class Probing(Attack):
@@ -315,7 +315,15 @@ class Probing(Attack):
                             "voltage": self.cs.voltage.set,
                             "pulse_repeat": self.cs.pulse.repeat
                         },
-                        "expected_data": self.expected_data,
+                        "experiment": {
+                            "expected_data": self.expected_data,
+                            "start": self.start_pos,
+                            "end": self.end_pos,
+                            "device_name": device_name,
+                            "start_offset": stm32f4_start_offset,
+                            "end_offset": stm32f4_end_offset,
+                            "repetitions": repetitions,
+                        }
                     }
                 }
                 json.dump(d, fp, cls=DatapointEncoder)
