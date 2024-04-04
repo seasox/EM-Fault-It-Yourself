@@ -72,6 +72,7 @@ class MarlinSerial:
         self.close()
         time.sleep(1)
         self.open()
+        time.sleep(1)
 
     def open(self):
         if self.ser:
@@ -115,6 +116,7 @@ class MarlinSerial:
                     self.ser.flush()
                     break
                 except SerialException or PortNotOpenError as e:
+                    self.log.error(f"Serial exception during cmd: {e}")
                     self.reconnect()
                     if not retriable:
                         raise e
