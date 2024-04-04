@@ -135,6 +135,8 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
             # a timeout or undefined behavior after fault is not what we expect here
             if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
+            if sum([dp.get_01_flips(reg_name) for reg_name in ['r0', 'r1', 'r2', 'r3', 'r6', 'r7']]) > 0:
+                return -1
             return sum([dp.get_01_flips(reg_name) for reg_name in ['r4', 'r5']])
         case Metric.ResetUnsuccessful:
             return STATUS.RESET_UNSUCCESSFUL in dp.response_before_fault.status
