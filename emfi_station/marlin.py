@@ -64,22 +64,42 @@ class Marlin:
         """
         self.ser.close()
 
-    def __wait_cmd_completed(self, max_tries: int = 10) -> None:
+    def cmd(self, cmd, retriable: bool = False, with_output: bool = False) -> str:
+        """
+        Runs a command, optionally retrying in case of failure.
+        :param cmd: Command to run.
+        :param retriable: Retry command if failed. Setting this to True assumes that the cmd can be
+                      safely retried by re-sending `cmd`.
+        :param with_output: Return output of command.
+        """
+        ok = False
+        output = ""
+        while not ok:
+            self.ser.cmd(cmd)
+            if with_output:
+                output = str(self.ser.read())
+            # if retry is True, wait_cmd_completed should return if no OK_MSG was received after max_tries
+            ok = self.__wait_cmd_completed(force_success=not retriable)
+        return output
+
+    def __wait_cmd_completed(self, max_tries: int = 10, force_success=True) -> bool:
         """
         Waits for a command to be completed.
         HOST_KEEPALIVE_FEATURE has to be enabled in Marlin configuration.
         Marlin is expected to send a 'busy' message once a second (DEFAULT_KEEPALIVE_INTERVAL 1).
         :param max_tries: Maximum number of tries to receive 'ok' message.
+        :param force_success: enter infinite loop until OK_MSG was received. If this parameter is set to
+                              True (the default), the function will run indefinitely until OK_MSG was received.
+                              Otherwise, the function will return False after exceeding max_tries.
         """
         try:
             counter = 0
             while True:
-                from serial import SerialException, PortNotOpenError
+                from serial import SerialException, PortNotOpenError  # type: ignore
                 try:
                     res = self.ser.read()
                 except SerialException or PortNotOpenError as e:
                     self.log.error("caught exception during read")
-                    self.ser.reconnect()
                     raise e
                 if res == BUSY_MSG:
                     counter = 0
@@ -88,16 +108,14 @@ class Marlin:
                 time.sleep(0.25)
                 counter += 1
                 if counter > max_tries:
-                    # workaround for marlin serial not responding during long-time experiments (>5 days).
                     self.log.error(f"No OK_MSG from Marlin serial.")
-                    self.ser.reconnect()
-                    counter = 0
-
+                    if not force_success:
+                        return False
         except KeyboardInterrupt:
             self.emergency()
             raise
 
-        return
+        return True
 
     def __wait_move_completed(self) -> None:
         """
@@ -105,8 +123,8 @@ class Marlin:
         :return: None
         """
         self.ser.clear()
-        self.ser.cmd('M400')
-        self.__wait_cmd_completed()
+        self.cmd('M400', retriable=True)
+
 
     def emergency(self) -> None:
         """
@@ -115,7 +133,7 @@ class Marlin:
         """
         self.ser.cmd('M410')
         self.log.critical('Emergency stop initiated.')
-        self.__wait_cmd_completed()
+        self.__wait_cmd_completed()  # wait for emergency stop
 
     def kill(self) -> None:
         """
@@ -125,16 +143,14 @@ class Marlin:
         """
         self.ser.cmd('M112')
         self.log.critical('Killing Marlin. Reboot necessary.')
-        self.__wait_cmd_completed()
+        self.__wait_cmd_completed()  # wait for kill
 
     def get_position(self) -> tuple[float, float, float]:
         """
         Retrieves current position.
         :return: Position coordinates (x, y, z)
         """
-        self.ser.cmd('M114')
-        pos_str = str(self.ser.read())
-        self.__wait_cmd_completed()
+        pos_str = self.cmd('M114', retriable=True, with_output=True)
         try:
             s = pos_str.split(':')
             x = float(s[1].split(' ', 1)[0])
@@ -151,8 +167,7 @@ class Marlin:
         :param acceleration: Acceleration in mm/s/s
         :return: None
         """
-        self.ser.cmd('M204 T' + str(acceleration))
-        self.__wait_cmd_completed()
+        self.cmd('M204 T' + str(acceleration), retriable=True)
 
     def move(self, x: Optional[float] = None, y: Optional[float] = None, z: Optional[float] = None,
              feed_rate: float = 5) -> None:
@@ -179,10 +194,14 @@ class Marlin:
             try:
                 self.ser.cmd(cmd, False)
                 self.log.info('Moving to X={:s}, Y={:s}, Z={:s}.'.format(str(x), str(y), str(z)))
-                self.__wait_cmd_completed()
+                # we cannot use self.cmd here as we have to home in case of a connection error before retrying
+                ok = self.__wait_cmd_completed(force_success=False)
+                if not ok:
+                    continue
                 self.__wait_move_completed()
                 break
             except SerialException or PortNotOpenError:
+                self.log.error('Homing due to connection error.')
                 self.home(x=True, y=True, z=True, force_homing=False)
 
     def relative_move(self, dx: Optional[float] = None, dy: Optional[float] = None, dz: Optional[float] = None,
@@ -196,7 +215,7 @@ class Marlin:
         :return: None
         """
         x, y, z = self.get_position()
-        if not self.is_safe_height(z + dz):
+        if dz and not self.is_safe_height(z + dz):
             self.log.critical(f'Moving to this position is not safe: {z + dz} > {self.safe_z}')
             return
         self.relative_mode(True)
@@ -210,11 +229,9 @@ class Marlin:
         :return: None
         """
         if enable:
-            self.ser.cmd('G91')
-            self.__wait_cmd_completed()
+            self.cmd('G91', retriable=True)
         else:
-            self.ser.cmd('G90')
-            self.__wait_cmd_completed()
+            self.cmd('G90', retriable=True)
 
     def continuous_move(self, x: float, y: float, z: float, feed_rate: int, step: int = 1) -> None:
         """
@@ -235,8 +252,7 @@ class Marlin:
         if z:
             cmd += 'Z{:f}'.format(step * z)
         # SAFETY: this might raise an Exception. We don't want to catch here as we don't know our current position
-        self.ser.cmd(cmd, False)
-        self.__wait_move_completed()
+        self.cmd(cmd, retriable=False)
 
     def continuous_update(self, x: Optional[float] = None, y: Optional[float] = None, z: Optional[float] = None):
         """
@@ -261,7 +277,7 @@ class Marlin:
         :return: None
         """
         self.ser.cmd('G60 S{:d}'.format(slot))
-        self.__wait_cmd_completed()
+        self.__wait_cmd_completed()  # wait for save pos complete
 
     def return_to_pos(self, x: bool = True, y: bool = True, z: bool = True, slot: int = 0) -> None:
         """
@@ -284,7 +300,7 @@ class Marlin:
             from serial import SerialException, PortNotOpenError
             try:
                 self.ser.cmd(cmd, False)
-                self.__wait_cmd_completed()
+                self.__wait_cmd_completed()  # wait for return pos complete
                 break
             except SerialException or PortNotOpenError:
                 self.home(x=True, y=True, z=True, force_homing=False)
@@ -306,9 +322,8 @@ class Marlin:
             if not force_homing:
                 cmd += ' O'
             self.ser.clear()
-            self.ser.cmd(cmd)
             self.log.info('Homing axles: Z')
-            self.__wait_cmd_completed()
+            self.cmd(cmd, retriable=True)
         if x or y:
             cmd = 'G28'
             if x:
@@ -318,9 +333,8 @@ class Marlin:
             if not force_homing:
                 cmd += ' O'
             self.ser.clear()
-            self.ser.cmd(cmd)
             self.log.info('Homing axles: {:s}'.format(cmd.split('G28 ')[1]))
-            self.__wait_cmd_completed()
+            self.cmd(cmd, retriable=True)
 
     def set_safe_height(self, z: float) -> None:
         """
@@ -349,8 +363,7 @@ class Marlin:
         :param slot: Index of fan slot.
         :return: None
         """
-        self.ser.cmd('M106 P{:d} S{:d}'.format(slot, speed))
-        self.__wait_cmd_completed()
+        self.cmd('M106 P{:d} S{:d}'.format(slot, speed), retriable=True)
 
 
 class ContinuousMove:
