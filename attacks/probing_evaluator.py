@@ -96,7 +96,7 @@ def main():
     #             success_rate_cb)
 
 
-def make_heatmap(dps: np.typing.NDarray[Datapoint], overlay, cmap, metric, title, callback):
+def make_heatmap(dps: np.typing.NDArray[Datapoint], overlay, cmap, metric, title, callback):
     dx = len(dps)
     dy = len(dps[0])
     dz = len(dps[0][0])
