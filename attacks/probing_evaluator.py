@@ -4,6 +4,7 @@ import typing as t
 from typing import Optional, Dict, Any
 
 import numpy as np
+import numpy.typing as npt
 
 from attacks.Comm import DatapointDecoder
 from attacks.probing import Datapoint
@@ -53,6 +54,8 @@ def main():
         exit(1)
     fname = sys.argv[1]
     overlay = sys.argv[2] if len(sys.argv) > 2 else None
+    # fname = "../dp_json/data_2024-04-04-23:28:33.json" 
+    # overlay = "stm32f4.jpg"
 
     with open(fname, "r") as fp:
         experiment: dict[str] = json.load(fp, cls=DatapointDecoder)
@@ -78,28 +81,26 @@ def main():
         end_z = start_z + shape[2]
         dps[start_x:end_x + 1, start_y:end_y, start_z:end_z + 1] = measurements  # TODO off-by-one?
     else:
-        dps: [[[Datapoint]]] = experiment
+        dps = np.array(experiment)
     make_heatmap(dps, overlay, discrete_cmap(10, 'Greys'),
-                 Metric.AnyFlipAnywhere, "Any Flip Anywhere Average Score", avg_cb)
-    make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5, "Pr[0-1 R4 R5 > 0]",
+                 Metric.AnyFlipAnywhere, "Average Flips for Any Flip Anywhere", avg_cb)
+    make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5Only, "Zero-To-One Flip on R4 and R5",
                  success_rate_cb)
-    make_heatmap(dps, overlay, discrete_cmap(10, 'Blues'), Metric.ZeroOneFlipOnR4OrR5, "Max(0-1 R4 R5)",
+    make_heatmap(dps, overlay, discrete_cmap(10, 'Blues'), Metric.ZeroOneFlipOnR4OrR5Only, "Max Value for Zero-to-One Flip on R4 and R5",
                  max_cb)
     make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'),
-                 Metric.ZeroOneFlipOnR4OrR5, "Zero-To-One on R4 or R5", avg_cb)
+                 Metric.ZeroOneFlipOnR4OrR5Only, "Average Flips for Zero-To-One Flip on R4 and R5 (Successful runs only)", avg_cb)
     # make_heatmap(dps, overlay, discrete_cmap(10, 'Greens'), Metric.ZeroOneFlipOnR4OrR5,
     #             "Max Score for Zero-To-One on R4 or R5",
     #             max_cb)
     make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'),
-                 Metric.Crash, "Pr[Crash = 1]", success_rate_cb)
+                 Metric.Crash, "Crash Probability", success_rate_cb)
     # make_heatmap(dps, overlay, discrete_cmap(10, 'Reds'), Metric.ResetUnsuccessful, "Reset Unsuccessful",
     #             success_rate_cb)
 
 
-def make_heatmap(dps: np.typing.NDArray[Datapoint], overlay, cmap, metric, title, callback):
-    dx = len(dps)
-    dy = len(dps[0])
-    dz = len(dps[0][0])
+def make_heatmap(dps : npt.NDArray, overlay, cmap, metric, title, callback):
+    (dx, dy, dz, _) = dps.shape
     perf_xy_planes = []
     for z in range(dz):
         vis = {}
@@ -108,11 +109,8 @@ def make_heatmap(dps: np.typing.NDArray[Datapoint], overlay, cmap, metric, title
         for x in range(dx):
             for y in range(dy):
                 # the performances of the datapoints created at the location
-                if isinstance(dps[x][y][z], Datapoint):
-                    values = [evaluate(d, metric) for d in dps[x][y][z]]
-                    perf[y][x] = callback(values)
-                else:
-                    perf[y][x] = 0
+                values = [evaluate(d, metric) if d else 0 for d in dps[y][x][z]]
+                perf[y][x] = callback(values)
         vis["perf"] = perf
         vis["title"] = f"{title}; {metric}; Z={z}"
         perf_xy_planes.append(vis)
@@ -132,10 +130,10 @@ def visualize(vis: Dict[str, Any], overlay: Optional[str], cmap):
         ax.imshow(im, extent=[-1, matrix.shape[1], -1, matrix.shape[0]])
     heatmap = ax.imshow(matrix, cmap=cmap, alpha=0.5, interpolation='nearest')
     ax.set_aspect('equal')
-    if "title" in vis:
-        plt.title(vis["title"])
+    # if "title" in vis:
+    #     plt.title(vis["title"])
     fig.colorbar(heatmap)
-    plt.show()
+    plt.savefig(f"{vis['title']}.png")
 
 
 if __name__ == '__main__':
