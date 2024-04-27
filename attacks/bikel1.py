@@ -1,7 +1,10 @@
 import json
+import random
 import time
 from datetime import datetime
 from pathlib import Path
+
+import typing as t
 
 from RPi import GPIO
 from bitstring import BitArray
@@ -21,7 +24,7 @@ from emfi_station.utils import add_tuples
 # chip dimensions: 11x11 mm
 device_name = "stm32f4discovery"
 stm32f4_delta = (11, 11, 0)
-stm32f4_start = (105, 60, 80.5)
+stm32f4_start = (105, 60, 79.5)  # was: 80.5
 #stm32f4_start_offset = (7, 0, 0)
 stm32f4_start_offset = (0, 0, 0)
 #stm32f4_end_offset = (0, -8, 0)
@@ -100,20 +103,22 @@ class BikeL1(Attack):
     def init(self, aw) -> None:
         self.aw = aw
         self.cs = ChipSHOUTER("/dev/serial/by-id/usb-NewAE_ChipSHOUTER_Serial_NA430KYI-if00-port0")
-
-        self.cs.voltage = 150
-        self.cs.pulse.repeat = 3
-        self.cs.arm_timeout = 10  # 10 minutes arm timeout
+        self.cs_setup()
         self.experiments = []
         GPIO.output(self.mosi_pin, 1)  # set control pin high (otherwise no fault window is started)
         
-    def cs_reconnect(self):
+    def cs_setup(self):
+        self.cs.armed = False
+        self.cs.reset = True
         self.cs.disconnect()
         time.sleep(1)
         self.cs.connect()
         time.sleep(1)
-        self.log.info(
-            f"ChipSHOUTER settings: {self.cs.voltage.set} V/{self.cs.voltage.measured} V, {self.cs.pulse.repeat} pulses, armed: {self.cs.armed}")
+        self.cs.voltage = 350
+        self.cs.pulse.width = 120
+        self.cs.pulse.repeat = 5
+        self.cs.arm_timeout = 1  # 1 minute arm timeout
+        self.log.info(f"ChipSHOUTER state: {self.cs}")
         
         
     def do_shout(self):
@@ -121,17 +126,17 @@ class BikeL1(Attack):
         while not done:
             try:
                 if not self.cs.armed:
-                    self.cs.armed = True
+                    self.cs.clr_armed = True
                     time.sleep(.5)
                 self.cs.pulse = True
                 done = True
             except Exception as e:
-                self.log.error(e)
-                self.cs_reconnect()
+                self.log.error("Error while shouting", exc_info=True)
+                self.cs_setup()
         
     def wait_fault_window_end(self) -> bool:
         time_taken = self.device.wait_fault_window_end()
-        self.log.debug("Waiting for fault window end took %.02f seconds" % (time_taken))
+        self.log.info("Waiting for fault window end took %.02f seconds" % (time_taken))
 
         if time_taken < 0:  # a timeout, we cannot say anything about the device's state!
             self.log.info('Did not find fault window end sequence, resetting')
@@ -140,7 +145,7 @@ class BikeL1(Attack):
 
         
         
-    def read_sk_part(self) -> bool:
+    def read_sk_part(self) -> t.Tuple[Response, bool]:
         # we know the device sent the fault window end sequence
         time.sleep(self.dut_prep_time)  # wait for DUT to arrive at transfer()
         response_after_fault = self.device.read_regs()  # read the register values
@@ -153,15 +158,18 @@ class BikeL1(Attack):
         if _data != self.end_seq:  # make sure the end sequence was received
             self.log.info('Did not find end sequence, resetting')
             self.experiments[-1]['response_after_fault'] = [STATUS.END_SEQUENCE_NOT_FOUND]
-            return False
+            return None, False
 
         if len(self.sk) <= BIKE_H0_LEN_BIT:
             self.hw_h0 += response_after_fault.raw.bin.count("1")
 
         self.sk.append(response_after_fault.raw)  # TODO check order
-        return True
+        return response_after_fault, True
 
     def shout(self) -> bool:
+        self.cs.armed = False
+        self.cs.voltage = random.randint(200, 350)
+        self.cs.pat_wave = '0' + ''.join(str(random.randint(0, 1)) for _ in range(65)) + '0'
         while len(self.sk) < 2 * BIKE_H0_PADDED_BIT:
             self.log.debug("Waiting for start sequence...")
             time_taken = self.device.wait_fault_window_start()
@@ -179,11 +187,19 @@ class BikeL1(Attack):
             
             success = self.wait_fault_window_end()
             if not success:
+                self.log_experiment()
                 return False
-            success = self.read_sk_part()
+            response, success = self.read_sk_part()
             if not success:
+                self.log_experiment()
                 return False
-        
+            
+            # early return: no faults
+            if self.num_shouts == 0 and self.hw_h0 < 10:
+                self.log.info(f"Weight ({self.hw_h0}) too small, early exit")
+                self.log_experiment(True, None)
+                return False
+            
         return True
     
     def log_experiment(self, transmission_correct, stack_key):
