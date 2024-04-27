@@ -110,6 +110,9 @@ class AttackWorker:
                         raise Exception('Critical attack check failed')
                     while not self.__check_temp():
                         time.sleep(5)
+        except KeyboardInterrupt:
+            self.log.info("Caught interrupt, cancel attack.")
+            pass
         finally:
             if self.running:
                 # if the attack was stopped (using stop()), attack shutdown has already been called
