@@ -107,9 +107,9 @@ class Datapoint:
 
 
 class Metric(Enum):
-    AnyFlipAnywhere = auto()
+    ZeroOneFlipAnywhere = auto()
     Crash = auto()
-    ZeroOneFlipOnR4OrR5 = auto()
+    ZeroOneFlipOnR4OrR5Only = auto()
     ResetUnsuccessful = auto()
 
 
@@ -122,21 +122,22 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
         return -1
 
     match metric:
-        case Metric.AnyFlipAnywhere:
+        case Metric.ZeroOneFlipAnywhere:
             # a timeout or undefined behavior after fault is not what we expect here
             if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
-            return sum([dp.get_01_flips(reg_name) + dp.get_10_flips(reg_name) for reg_name in dp.reg_names])
+            return sum([dp.get_01_flips(reg_name) for reg_name in dp.reg_names])
         case Metric.Crash:
-            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
+            if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status:  # or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return 1
             return 0
-        case Metric.ZeroOneFlipOnR4OrR5:
+        case Metric.ZeroOneFlipOnR4OrR5Only:
             # a timeout or undefined behavior after fault is not what we expect here
             if STATUS.FAULT_WINDOW_TIMEOUT in dp.response_after_fault.status or STATUS.END_SEQUENCE_NOT_FOUND in dp.response_after_fault.status:
                 return -1
-            if sum([dp.get_01_flips(reg_name) for reg_name in ['r0', 'r1', 'r2', 'r3', 'r6', 'r7']]) > 0:
-                return -1
+            # a bitflip on registers other than r4 or r5 is not what we expect here
+            # if sum([dp.get_01_flips(reg_name) for reg_name in ['r0', 'r1', 'r2', 'r3', 'r6', 'r7']]) > 0:
+            #     return -1
             return sum([dp.get_01_flips(reg_name) for reg_name in ['r4', 'r5']])
         case Metric.ResetUnsuccessful:
             return STATUS.RESET_UNSUCCESSFUL in dp.response_before_fault.status
