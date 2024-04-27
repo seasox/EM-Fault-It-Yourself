@@ -152,8 +152,10 @@ def evaluate(dp: Datapoint, metric: Metric) -> float:
 device_name = "stm32f4discovery"
 stm32f4_delta = (11, 11, 0)
 stm32f4_start = (105, 60, 80.5)
-stm32f4_start_offset = (7, 0, 0)
-stm32f4_end_offset = (0, -8, 0)
+#stm32f4_start_offset = (7, 0, 0)
+stm32f4_start_offset = (0, 0, 0)
+#stm32f4_end_offset = (0, -8, 0)
+stm32f4_end_offset = (0, 0, 0)
 
 stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
 stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
