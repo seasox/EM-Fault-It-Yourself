@@ -185,6 +185,26 @@ class BikeL1(Attack):
                 return False
         
         return True
+    
+    def log_experiment(self, transmission_correct, stack_key):
+        result_dict = {
+            "transmission_correct": transmission_correct,
+            "is_faulty": self.hw_h0 > HAMMING_WEIGHT_MAX_THRESH or self.hw_h0 < HAMMING_WEIGHT_MIN_THRESH if stack_key else False,
+            "hw_h0": self.hw_h0,
+            "register_key": self.sk.bin,
+            "stack_key": stack_key,
+            "position": self.aw.position,
+            "settings": {
+                "cs": {
+                    "pat_wave": self.cs.pat_wave,
+                    "voltage": self.cs.voltage.set,
+                    "pulse_repeat": self.cs.pulse.repeat,
+                },
+            }
+        }
+        self.experiments[-1].update(result_dict)
+        self.log.info(self.experiments[-1])
+
 
     def was_successful(self) -> bool:
         assert(len(self.sk) == 2 * BIKE_H0_PADDED_BIT)
@@ -215,18 +235,7 @@ class BikeL1(Attack):
         else:
             self.log.critical("Register key part does not match key in stack")
 
-        result_dict = {
-            "transmission_correct": transmission_correct,
-            "is_faulty": is_faulty,
-            "hw_h0": self.hw_h0,
-            "register_key": self.sk.bin,
-            "stack_key": _data.bin,
-            "position": self.aw.position
-        }
-
-        self.experiments[-1].update(result_dict)
-        
-        self.log.info(self.experiments[-1])
+        self.log_experiment(transmission_correct, _data.bin)
 
         if not is_faulty:
             self.log.info('Finished this iteration without a faulty key :(')
@@ -259,10 +268,6 @@ class BikeL1(Attack):
             j = {
                 "experiments": self.experiments,
                 "settings": {
-                    "cs": {
-                        "voltage": self.cs.voltage.set,
-                        "pulse_repeat": self.cs.pulse.repeat,
-                    },
                     "experiment": {
                         "start": self.start_pos,
                         "end": self.end_pos,
