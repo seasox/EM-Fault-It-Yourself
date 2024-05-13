@@ -56,7 +56,7 @@ class ThermalCamera:
             self.mlx = adafruit_mlx90640.MLX90640(i2c)
             self.mlx.refresh_rate = adafruit_mlx90640.RefreshRate.REFRESH_4_HZ
         except Exception as e:
-            self.log.critical('Init failed: ' + str(e))
+            self.log.debug('Init failed: ' + str(e))
 
     def __cv_frame(self) -> bytes:
         """
@@ -78,8 +78,8 @@ class ThermalCamera:
                     except RuntimeError:
                         continue
                 if min_temp == 0:
-                    self.log.critical("failed to get frame from thermal camera")
-                    time.sleep(5)
+                    self.log.debug("failed to get frame from thermal camera")
+                    time.sleep(0.2)
                     self.__init_cam()
             max_temp = np.max(raw_image)
             self.last_temperature = float(max_temp)

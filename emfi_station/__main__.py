@@ -68,10 +68,14 @@ def main():
     log_dir.mkdir(exist_ok=True)
     assert log_dir.exists(), "Failed creating log directory"
     log_file = log_dir.joinpath("emfi_station.log")
-    logging.basicConfig(format='%(levelname)s:%(asctime)s:%(filename)s:%(message)s', filename=log_file, level=level, encoding='utf-8')
+    log_fmt = '%(levelname)s:%(asctime)s:%(filename)s: %(message)s'
+    logging.basicConfig(format=log_fmt, filename=log_file, level=level, encoding='utf-8')
     # protocol.py logs all websocket messages as DEBUG, which we usually don't need
     logging.getLogger('websockets.server').setLevel(logging.INFO)
-    logging.getLogger().addHandler(logging.StreamHandler())
+    stderr_handler = logging.StreamHandler()
+    stderr_handler.setFormatter(logging.Formatter(log_fmt))
+    stderr_handler.setLevel(level)
+    logging.getLogger().addHandler(stderr_handler)
 
     EMFIStation(config)
 
