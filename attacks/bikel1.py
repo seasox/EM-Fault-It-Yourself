@@ -25,16 +25,16 @@ from emfi_station.utils import add_tuples
 device_name = "stm32f4discovery"
 stm32f4_delta = (11, 11, 0)
 stm32f4_start = (105, 60, 79.5)  # was: 80.5
-#stm32f4_start_offset = (7, 0, 0)
-stm32f4_start_offset = (0, 0, 0)
-#stm32f4_end_offset = (0, -8, 0)
-stm32f4_end_offset = (0, 0, 0)
+stm32f4_start_offset = (7, 0, 0)
+#stm32f4_start_offset = (0, 0, 0)
+stm32f4_end_offset = (0, -8, 0)
+#stm32f4_end_offset = (0, 0, 0)
 
 stm32f4_end = add_tuples(stm32f4_start, stm32f4_delta)
 stm32f4_start = add_tuples(stm32f4_start, stm32f4_start_offset)
 stm32f4_end = add_tuples(stm32f4_end, stm32f4_end_offset)
 
-repetitions = 20
+repetitions = 100
 
 HAMMING_WEIGHT_MAX_THRESH = 95
 HAMMING_WEIGHT_MIN_THRESH = 30
@@ -108,15 +108,15 @@ class BikeL1(Attack):
         GPIO.output(self.mosi_pin, 1)  # set control pin high (otherwise no fault window is started)
         
     def cs_setup(self):
-        self.cs.armed = False
-        self.cs.reset = True
         self.cs.disconnect()
         time.sleep(1)
         self.cs.connect()
         time.sleep(1)
-        self.cs.voltage = 350
-        self.cs.pulse.width = 120
-        self.cs.pulse.repeat = 5
+        self.cs.armed = False
+        self.cs.reset = True
+        #self.cs.voltage = 350
+        #self.cs.pulse.width = 120
+        #self.cs.pulse.repeat = 5
         self.cs.arm_timeout = 1  # 1 minute arm timeout
         self.log.info(f"ChipSHOUTER state: {self.cs}")
         
@@ -168,7 +168,7 @@ class BikeL1(Attack):
 
     def shout(self) -> bool:
         self.cs.armed = False
-        self.cs.voltage = random.randint(200, 350)
+        self.cs.voltage = random.randint(300, 450)
         self.cs.pat_wave = '0' + ''.join(str(random.randint(0, 1)) for _ in range(65)) + '0'
         while len(self.sk) < 2 * BIKE_H0_PADDED_BIT:
             self.log.debug("Waiting for start sequence...")
@@ -187,11 +187,11 @@ class BikeL1(Attack):
             
             success = self.wait_fault_window_end()
             if not success:
-                self.log_experiment()
+                self.log_experiment(False, None)
                 return False
             response, success = self.read_sk_part()
             if not success:
-                self.log_experiment()
+                self.log_experiment(False, None)
                 return False
             
             # early return: no faults
